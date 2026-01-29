@@ -27,6 +27,75 @@ def get_customer_dashboard_data():
 		}
 	}
 
+
+
+@frappe.whitelist() #sales invoice data
+def get_sales_invoice_data():
+    data = frappe.db.sql("""
+        SELECT
+            name,
+            posting_date,
+            due_date,
+            grand_total AS total,
+            status
+        FROM `tabSales Invoice`
+        WHERE docstatus = 1
+        ORDER BY posting_date DESC
+    """, as_dict=True)
+
+    return data
+
+
+
+@frappe.whitelist()  #sales order data
+def get_sales_order_data():
+    return frappe.db.sql("""
+        SELECT
+            name,
+            transaction_date,
+            grand_total,
+            status
+        FROM `tabSales Order`
+        WHERE docstatus = 1
+        ORDER BY transaction_date DESC
+    """, as_dict=True)
+
+
+@frappe.whitelist()
+def get_quotation_data(): #quotation data
+    quotations = frappe.db.sql("""
+        SELECT
+            name,
+            creation AS created_on,
+            valid_till,
+            grand_total,
+            status
+        FROM `tabQuotation`
+        WHERE docstatus = 1
+        ORDER BY creation DESC
+    """, as_dict=True)
+
+    return quotations
+
+
+
+@frappe.whitelist()
+def get_delivery_note_data(): #delivery note data
+    delivery_notes = frappe.db.sql("""
+        SELECT
+            dn.name AS delivery_note,
+            dni.against_sales_order AS sales_order,
+            dn.posting_date,
+            dn.status
+        FROM `tabDelivery Note` dn
+        JOIN `tabDelivery Note Item` dni
+            ON dn.name = dni.parent
+        WHERE dn.docstatus = 1
+        ORDER BY dn.posting_date DESC
+    """, as_dict=True)
+
+    return delivery_notes
+
 @frappe.whitelist()
 def is_customer():
 	return {

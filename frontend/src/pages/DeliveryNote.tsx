@@ -1,6 +1,6 @@
 import React from 'react';
-import { FileText } from 'lucide-react';
-import { useFrappeGetCall } from "frappe-react-sdk";
+import { Truck } from 'lucide-react';
+import { useFrappeGetCall } from 'frappe-react-sdk';
 import ActionButtons from '../components/Download';
 import DataToolbar from '../components/DataToolbar';
 
@@ -54,9 +54,10 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
         </div>
       </div>
 
+      {/* Use the reusable DataToolbar */}
       <DataToolbar
-        onFilter={() => console.log("Filter clicked")}
-        onExport={() => console.log("Export clicked")}
+        onFilter={() => console.log('Filter clicked')}
+        onExport={() => console.log('Export clicked')}
       />
     </div>
 
@@ -87,8 +88,8 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
                 ))}
                 <td className="px-6 py-4 text-right">
                   <ActionButtons
-                    onView={() => console.log("View clicked for", item.name)}
-                    onDownload={() => console.log("Download clicked for", item.name)}
+                    onView={() => console.log("View clicked for", item.id)}
+                    onDownload={() => console.log("Download clicked for", item.id)}
                   />
                 </td>
               </tr>
@@ -100,45 +101,43 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
   </div>
 );
 
-const InvoicesPage = () => {
-  const { data, isLoading, error } = useFrappeGetCall("customer_portal.api.v1.get_sales_invoice_data");
-
-  const columns: Column[] = [
-    { label: 'Invoice ID', key: 'name' },
-    { label: 'Date', key: 'posting_date' },
-    { label: 'Due Date', key: 'due_date' },
-    { label: 'Total', key: 'total' },
-    { label: 'Status', key: 'status' },
-  ];
+const DeliveryNotesPage = () => {
+  const { data, isLoading, error } = useFrappeGetCall("customer_portal.api.v1.get_delivery_note_data");
 
   if (isLoading) {
-    return (
-      <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-slate-500 font-medium animate-pulse">Loading invoices...</div>
-      </div>
-    );
+    return <div className="p-10">Loading Delivery Notes...</div>;
   }
 
   if (error) {
-    return (
-      <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-rose-500 font-bold">Error loading invoices: {error.message}</div>
-      </div>
-    );
+    return <div className="p-10 text-rose-500">Error loading Delivery Notes</div>;
   }
 
-  const invoices = data?.message || [];
+  const deliveryNotes = (data?.message || []).map((dn: any) => ({
+    id: dn.delivery_note,
+    order: dn.sales_order,
+    date: dn.posting_date,
+    tracking: `TRK-${Math.floor(Math.random() * 90000) + 10000}`,
+    status: dn.status,
+  }));
+
+  const columns: Column[] = [
+    { label: 'Delivery ID', key: 'id' },
+    { label: 'Order Ref', key: 'order' },
+    { label: 'Dispatch Date', key: 'date' },
+    { label: 'Tracking #', key: 'tracking' },
+    { label: 'Status', key: 'status' },
+  ];
 
   return (
     <div className="p-10 bg-slate-50 min-h-screen">
-      <DocumentListView 
-        title="Invoices" 
-        data={invoices} 
-        columns={columns} 
-        icon={FileText} 
+      <DocumentListView
+        title="Delivery Notes"
+        data={deliveryNotes}
+        columns={columns}
+        icon={Truck}
       />
     </div>
   );
 };
 
-export default InvoicesPage;
+export default DeliveryNotesPage;

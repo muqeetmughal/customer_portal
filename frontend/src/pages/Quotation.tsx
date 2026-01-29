@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText } from 'lucide-react';
+import { Quote } from 'lucide-react';
 import { useFrappeGetCall } from "frappe-react-sdk";
 import ActionButtons from '../components/Download';
 import DataToolbar from '../components/DataToolbar';
@@ -54,6 +54,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
         </div>
       </div>
 
+      {/* Reusable toolbar */}
       <DataToolbar
         onFilter={() => console.log("Filter clicked")}
         onExport={() => console.log("Export clicked")}
@@ -66,9 +67,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
           <thead className="bg-slate-50/50 text-slate-500 text-[11px] uppercase tracking-wider font-bold">
             <tr>
               {columns.map((col, i) => (
-                <th key={i} className={`px-6 py-5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                  {col.label}
-                </th>
+                <th key={i} className={`px-6 py-5 ${col.align === 'right' ? 'text-right' : ''}`}>{col.label}</th>
               ))}
               <th className="px-6 py-5 text-right">Actions</th>
             </tr>
@@ -100,45 +99,37 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
   </div>
 );
 
-const InvoicesPage = () => {
-  const { data, isLoading, error } = useFrappeGetCall("customer_portal.api.v1.get_sales_invoice_data");
+const QuotationsPage = () => {
+  const { data, isLoading, error } = useFrappeGetCall("customer_portal.api.v1.get_quotation_data");
+
+  if (isLoading) return <div className="p-10">Loading Quotations...</div>;
+  if (error) return <div className="p-10 text-red-500">Error loading Quotations</div>;
+
+  const quotations = Array.isArray(data?.message ? data.message : data) ? data?.message || data : [];
 
   const columns: Column[] = [
-    { label: 'Invoice ID', key: 'name' },
-    { label: 'Date', key: 'posting_date' },
-    { label: 'Due Date', key: 'due_date' },
-    { label: 'Total', key: 'total' },
+    { label: 'Quote ID', key: 'name' },
+    { label: 'Created', key: 'created_on' },
+    { label: 'Valid Until', key: 'valid_till' },
+    { label: 'Total', key: 'grand_total' },
     { label: 'Status', key: 'status' },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-slate-500 font-medium animate-pulse">Loading invoices...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-rose-500 font-bold">Error loading invoices: {error.message}</div>
-      </div>
-    );
-  }
-
-  const invoices = data?.message || [];
+  const formattedQuotations = quotations.map((q: any) => ({
+    ...q,
+    grand_total: `$${Number(q.grand_total).toLocaleString()}`,
+  }));
 
   return (
     <div className="p-10 bg-slate-50 min-h-screen">
-      <DocumentListView 
-        title="Invoices" 
-        data={invoices} 
-        columns={columns} 
-        icon={FileText} 
+      <DocumentListView
+        title="Quotations"
+        data={formattedQuotations}
+        columns={columns}
+        icon={Quote}
       />
     </div>
   );
 };
 
-export default InvoicesPage;
+export default QuotationsPage;

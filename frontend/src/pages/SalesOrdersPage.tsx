@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText } from 'lucide-react';
+import { ShoppingBag } from 'lucide-react';
 import { useFrappeGetCall } from "frappe-react-sdk";
 import ActionButtons from '../components/Download';
 import DataToolbar from '../components/DataToolbar';
@@ -54,6 +54,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
         </div>
       </div>
 
+      {/* Reusable toolbar */}
       <DataToolbar
         onFilter={() => console.log("Filter clicked")}
         onExport={() => console.log("Export clicked")}
@@ -87,8 +88,8 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
                 ))}
                 <td className="px-6 py-4 text-right">
                   <ActionButtons
-                    onView={() => console.log("View clicked for", item.name)}
-                    onDownload={() => console.log("Download clicked for", item.name)}
+                    onView={() => console.log("View clicked for", item.id)}
+                    onDownload={() => console.log("Download clicked for", item.id)}
                   />
                 </td>
               </tr>
@@ -100,45 +101,43 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
   </div>
 );
 
-const InvoicesPage = () => {
-  const { data, isLoading, error } = useFrappeGetCall("customer_portal.api.v1.get_sales_invoice_data");
-
-  const columns: Column[] = [
-    { label: 'Invoice ID', key: 'name' },
-    { label: 'Date', key: 'posting_date' },
-    { label: 'Due Date', key: 'due_date' },
-    { label: 'Total', key: 'total' },
-    { label: 'Status', key: 'status' },
-  ];
+const SalesOrdersPage = () => {
+  const { data, isLoading } = useFrappeGetCall("customer_portal.api.v1.get_sales_order_data");
 
   if (isLoading) {
     return (
       <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-slate-500 font-medium animate-pulse">Loading invoices...</div>
+        <div className="text-slate-500 font-medium animate-pulse">Loading Sales Orders...</div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-rose-500 font-bold">Error loading invoices: {error.message}</div>
-      </div>
-    );
-  }
+  const salesOrders = (data?.message || []).map((so: any) => ({
+    id: so.name,
+    ref: "PO-XXXX",
+    date: so.transaction_date,
+    amount: `$${Number(so.grand_total).toLocaleString()}`,
+    status: so.status,
+  }));
 
-  const invoices = data?.message || [];
+  const columns: Column[] = [
+    { label: 'Order ID', key: 'id' },
+    { label: 'PO Ref', key: 'ref' },
+    { label: 'Date', key: 'date' },
+    { label: 'Amount', key: 'amount' },
+    { label: 'Status', key: 'status' },
+  ];
 
   return (
     <div className="p-10 bg-slate-50 min-h-screen">
       <DocumentListView 
-        title="Invoices" 
-        data={invoices} 
+        title="Sales Orders" 
+        data={salesOrders} 
         columns={columns} 
-        icon={FileText} 
+        icon={ShoppingBag} 
       />
     </div>
   );
 };
 
-export default InvoicesPage;
+export default SalesOrdersPage;

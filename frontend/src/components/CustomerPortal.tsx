@@ -71,20 +71,6 @@ const TOP_ITEMS = [
   { name: 'USB-C Docking Station', sales: 75, revenue: '$11,250', growth: '-2%' },
 ];
 
-const INVOICES = [
-  { id: 'INV-2024-001', date: 'Oct 12, 2024', due: 'Nov 12, 2024', amount: '$1,200.00', status: 'Paid' },
-  { id: 'INV-2024-002', date: 'Oct 15, 2024', due: 'Nov 15, 2024', amount: '$3,450.00', status: 'Pending' },
-  { id: 'INV-2024-003', date: 'Oct 18, 2024', due: 'Oct 25, 2024', amount: '$850.00', status: 'Overdue' },
-  { id: 'INV-2024-004', date: 'Oct 20, 2024', due: 'Nov 20, 2024', amount: '$2,100.00', status: 'Paid' },
-  { id: 'INV-2024-005', date: 'Oct 22, 2024', due: 'Nov 22, 2024', amount: '$1,150.00', status: 'Pending' },
-];
-
-const INITIAL_SALES_ORDERS = [
-  { id: 'SO-992', ref: 'PO-8812', date: 'Oct 10, 2024', amount: '$3,450.00', status: 'Confirmed' },
-  { id: 'SO-995', ref: 'PO-8815', date: 'Oct 14, 2024', amount: '$2,100.00', status: 'Processing' },
-  { id: 'SO-998', ref: 'PO-8818', date: 'Oct 16, 2024', amount: '$5,200.00', status: 'Shipped' },
-];
-
 const QUOTATIONS = [
   { id: 'QT-441', date: 'Sep 28, 2024', valid: 'Oct 28, 2024', amount: '$850.00', status: 'Expired' },
   { id: 'QT-445', date: 'Oct 05, 2024', valid: 'Nov 05, 2024', amount: '$12,400.00', status: 'Active' },
@@ -125,9 +111,7 @@ const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316'];
 
 const CustomerPortal = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [ordersList, setOrdersList] = useState(INITIAL_SALES_ORDERS);
   const [cart, setCart] = useState([]);
-  const [showCheckoutSuccess, setShowCheckoutSuccess] = useState(false);
 
   const cartTotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -155,23 +139,6 @@ const CustomerPortal = () => {
 
   const removeFromCart = (id) => {
     setCart(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleCheckout = () => {
-    const newOrder = {
-      id: `SO-${Math.floor(1000 + Math.random() * 9000)}`,
-      ref: 'WEB-STORE',
-      // FIX: Use 'numeric' for year instead of a literal string to avoid RangeError
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-      amount: `$${cartTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-      status: 'Processing'
-    };
-
-    setOrdersList(prev => [newOrder, ...prev]);
-    setCart([]);
-    setShowCheckoutSuccess(true);
-    setTimeout(() => setShowCheckoutSuccess(false), 3000);
-    setActiveTab('orders');
   };
 
   const StatCard = ({ title, value, icon: Icon, trend, trendValue, colorClass, isCurrency }) => (
@@ -241,20 +208,22 @@ const CustomerPortal = () => {
               <table className="w-full text-left">
                 <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
                   <tr>
-                    <th className="px-6 py-4">Event</th>
-                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Activity</th>
+                    <th className="px-6 py-4">Date</th>
                     <th className="px-6 py-4">Amount</th>
+                    <th className="px-6 py-4">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {RECENT_ACTIVITIES.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50">
-                      <td className="px-6 py-4 flex items-center gap-3">
-                        <div className="p-2 bg-slate-100 rounded-lg"><Clock size={16}/></div>
-                        <div><p className="text-sm font-medium text-slate-900">{item.desc}</p><p className="text-xs text-slate-400">{item.date}</p></div>
+                  {RECENT_ACTIVITIES.map((activity) => (
+                    <tr key={activity.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-bold text-slate-900">{activity.type}</p>
+                        <p className="text-xs text-slate-500">{activity.desc}</p>
                       </td>
-                      <td className="px-6 py-4"><StatusBadge status={item.status} /></td>
-                      <td className="px-6 py-4 text-sm font-bold">{item.amount}</td>
+                      <td className="px-6 py-4 text-xs text-slate-500 font-medium">{activity.date}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">{activity.amount}</td>
+                      <td className="px-6 py-4"><StatusBadge status={activity.status} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -262,29 +231,47 @@ const CustomerPortal = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-          <div className="flex items-center gap-2 mb-6"><Flame className="text-orange-500 fill-orange-500" size={20} /><h2 className="text-lg font-bold text-slate-800">Hot Items</h2></div>
-          <div className="space-y-6">
-            {TOP_ITEMS.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center group cursor-pointer">
-                <div><p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600">{item.name}</p><p className="text-xs text-slate-400">{item.sales} units • <span className="text-emerald-500 font-bold">{item.growth}</span></p></div>
-                <p className="font-mono text-sm font-bold text-slate-600">{item.revenue}</p>
-              </div>
-            ))}
-          </div>
+      </div>
+    </div>
+  );
+
+  const InventoryView = () => (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Product Catalog</h2>
+          <p className="text-sm text-slate-500">Browse and order items directly</p>
         </div>
+        <div className="flex gap-3">
+          <button className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50"><Filter size={20}/></button>
+          <button className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all"><Plus size={20}/> New Request</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {INVENTORY_ITEMS.map((item) => (
+          <div key={item.id} className="bg-white rounded-3xl border border-slate-100 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
+            <div className="flex justify-between items-start mb-6">
+              <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">{item.image}</div>
+              <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-wider">{item.category}</span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
+            <p className="text-xs text-slate-400 mb-4">Item ID: {item.id}</p>
+            <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase">Price</p>
+                <p className="text-xl font-black text-slate-900">${item.price.toFixed(2)}</p>
+              </div>
+              <button onClick={() => addToCart(item)} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"><ShoppingCart size={20}/></button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );
 
   const DocumentListView = ({ title, data, columns, icon: Icon }) => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-      {showCheckoutSuccess && title === 'Sales Orders' && (
-        <div className="bg-emerald-50 border border-emerald-100 text-emerald-800 p-4 rounded-2xl flex items-center gap-3 animate-bounce">
-          <CheckCircle2 className="text-emerald-600" />
-          <span className="font-bold">Checkout successful! Your new sales order has been created.</span>
-        </div>
-      )}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-100"><Icon className="text-white" size={24} /></div>
@@ -332,100 +319,6 @@ const CustomerPortal = () => {
     </div>
   );
 
-  const InventoryView = () => (
-    <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 animate-in fade-in slide-in-from-right-4 duration-500">
-      {/* Products List */}
-      <div className="xl:col-span-3 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Product Inventory</h2>
-            <p className="text-sm text-slate-500">Browse and add items to your wholesale cart</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="p-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"><Filter size={18} /></button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {INVENTORY_ITEMS.map((product) => (
-            <div key={product.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 hover:shadow-md transition-shadow group">
-              <div className="h-40 bg-slate-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-105 transition-transform duration-300">
-                {product.image}
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="text-[10px] uppercase font-black text-indigo-500 tracking-widest">{product.category}</span>
-                  <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{product.stock} in stock</span>
-                </div>
-                <h3 className="font-bold text-slate-900">{product.name}</h3>
-                <div className="flex justify-between items-center pt-2">
-                  <p className="text-lg font-black text-slate-900">${product.price.toFixed(2)}</p>
-                  <button
-                    onClick={() => addToCart(product)}
-                    className="p-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-md shadow-indigo-200"
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Cart Sidebar */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm flex flex-col max-h-[calc(100vh-160px)] sticky top-28">
-        <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-          <ShoppingCart className="text-indigo-600" size={20} />
-          <h3 className="font-bold text-slate-900">Your Cart ({cart.length})</h3>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {cart.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ShoppingCart className="text-slate-300" size={32} />
-              </div>
-              <p className="text-sm font-medium text-slate-400">Your cart is empty</p>
-            </div>
-          ) : (
-            cart.map((item) => (
-              <div key={item.id} className="flex gap-4">
-                <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center text-xl shrink-0">{item.image}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{item.name}</p>
-                  <p className="text-xs font-medium text-slate-500">${item.price.toFixed(2)}</p>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-2 bg-slate-100 rounded-lg p-1">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:bg-white rounded transition-colors"><Minus size={12} /></button>
-                      <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:bg-white rounded transition-colors"><Plus size={12} /></button>
-                    </div>
-                    <button onClick={() => removeFromCart(item.id)} className="text-rose-500 hover:bg-rose-50 p-1 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="p-6 bg-slate-50/50 border-t border-slate-100 space-y-4">
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-500 font-medium">Subtotal</span>
-            <span className="text-slate-900 font-black">${cartTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </div>
-          <button
-            disabled={cart.length === 0}
-            onClick={handleCheckout}
-            className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-100"
-          >
-            Checkout Order
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <DashboardView />;
@@ -451,8 +344,6 @@ const CustomerPortal = () => {
             </div>
           </div>
         );
-      case 'invoices': return <DocumentListView title="Invoices" data={INVOICES} columns={[{label: 'Invoice ID', key: 'id'}, {label: 'Date', key: 'date'}, {label: 'Due Date', key: 'due'}, {label: 'Total', key: 'amount'}, {label: 'Status', key: 'status'}]} icon={FileText} />;
-      case 'orders': return <DocumentListView title="Sales Orders" data={ordersList} columns={[{label: 'Order ID', key: 'id'}, {label: 'PO Ref', key: 'ref'}, {label: 'Date', key: 'date'}, {label: 'Amount', key: 'amount'}, {label: 'Status', key: 'status'}]} icon={ShoppingBag} />;
       case 'quotes': return <DocumentListView title="Quotations" data={QUOTATIONS} columns={[{label: 'Quote ID', key: 'id'}, {label: 'Created', key: 'date'}, {label: 'Valid Until', key: 'valid'}, {label: 'Total', key: 'amount'}, {label: 'Status', key: 'status'}]} icon={Quote} />;
       case 'delivery': return <DocumentListView title="Delivery Notes" data={DELIVERY_NOTES} columns={[{label: 'Delivery ID', key: 'id'}, {label: 'Order Ref', key: 'order'}, {label: 'Dispatch Date', key: 'date'}, {label: 'Tracking #', key: 'tracking'}, {label: 'Status', key: 'status'}]} icon={Truck} />;
       case 'ledger': return (
@@ -475,20 +366,22 @@ const CustomerPortal = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex font-sans text-slate-900">
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-900">
       {/* Sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-50 w-72 bg-slate-950 lg:relative translate-x-0">
-        <div className="p-8"><div className="flex items-center gap-4"><div className="w-10 h-10 bg-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-900/50"><LayoutDashboard className="text-white" size={24} /></div><span className="text-2xl font-black text-white tracking-tight">PortalPro</span></div></div>
-        <nav className="mt-4 px-6 space-y-1">
-          <p className="px-4 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Main Menu</p>
+      <aside className="w-80 bg-slate-950 text-white flex flex-col p-8">
+        <div className="flex items-center gap-4 mb-12 px-2">
+          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/40"><LayoutDashboard size={24} /></div>
+          <div><h1 className="text-xl font-black tracking-tight">MANUS<span className="text-indigo-500">ERP</span></h1><p className="text-[10px] font-bold text-slate-500 tracking-widest uppercase">Customer Portal</p></div>
+        </div>
+
+        <nav className="flex-1 space-y-2">
+          <div className="pb-2"><p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Main Menu</p></div>
           <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'dashboard' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><LayoutDashboard size={20}/><span className="font-bold">Dashboard</span></button>
           <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'analytics' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><BarChart3 size={20}/><span className="font-bold">Analytics</span></button>
           <button onClick={() => setActiveTab('ledger')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'ledger' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><BookOpen size={20}/><span className="font-bold">Ledger</span></button>
           <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'inventory' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><Package size={20}/><span className="font-bold">Inventory</span></button>
 
           <div className="pt-6 pb-2"><p className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Transactions</p></div>
-          <button onClick={() => setActiveTab('invoices')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'invoices' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><FileText size={20}/><span className="font-bold text-sm">Invoices</span></button>
-          <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'orders' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><ShoppingBag size={20}/><span className="font-bold text-sm">Sales Orders</span></button>
           <button onClick={() => setActiveTab('quotes')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'quotes' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><Quote size={20}/><span className="font-bold text-sm">Quotations</span></button>
           <button onClick={() => setActiveTab('delivery')} className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all ${activeTab === 'delivery' ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-600/30' : 'text-slate-400 hover:text-white hover:bg-slate-900'}`}><Truck size={20}/><span className="font-bold text-sm">Delivery Notes</span></button>
         </nav>

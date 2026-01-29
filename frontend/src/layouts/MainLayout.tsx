@@ -67,41 +67,41 @@ const MainLayout = () => {
 
 
 
-  if (isLoading || isValidating || is_customer_query.isLoading) {
-    return <LoadingScreen />
-  }
-  if (!currentUser ) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
-        <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
-          <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
-          <p className="text-slate-600 mb-6">You must be logged.</p>
-          <button
-            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
-          >
-            Login
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // if (isLoading || isValidating || is_customer_query.isLoading) {
+  //   return <LoadingScreen />
+  // }
+  // if (!currentUser ) {
+  //   return (
+  //     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
+  //       <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
+  //         <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
+  //         <p className="text-slate-600 mb-6">You must be logged.</p>
+  //         <button
+  //           className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+  //         >
+  //           Login
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
-  if ( !is_customer_query.data?.message?.is_customer) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
-        <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
-          <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
-          <p className="text-slate-600 mb-6">You must be logged in as a customer to access the Customer Portal.</p>
-          <button
-            // onClick={() => login()}
-            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
-          >
-            Login
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // if ( !is_customer_query.data?.message?.is_customer) {
+  //   return (
+  //     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
+  //       <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
+  //         <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
+  //         <p className="text-slate-600 mb-6">You must be logged in as a customer to access the Customer Portal.</p>
+  //         <button
+  //           // onClick={() => login()}
+  //           className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+  //         >
+  //           Login
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // }
   return (
     <div className="min-h-screen bg-[#f8fafc] flex font-sans text-slate-900">
       {/* Sidebar */}
