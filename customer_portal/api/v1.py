@@ -27,6 +27,11 @@ def get_customer_dashboard_data():
 		}
 	}
 
+@frappe.whitelist()
+def is_customer():
+	return {
+		"is_customer" : True
+	}
 
 	# """
 	# Returns customer dashboard statistics including sales, outstanding, paid amounts and ledger balance

@@ -47,7 +47,7 @@ import {
   Legend
 } from 'recharts';
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { useFrappeAuth } from 'frappe-react-sdk';
+import { useFrappeAuth, useFrappeGetCall } from 'frappe-react-sdk';
 import LoadingScreen from '../components/LoadingScreen';
 
 const MainLayout = () => {
@@ -63,9 +63,44 @@ const MainLayout = () => {
     getUserCookie,
   } = useFrappeAuth();
 
+  const is_customer_query = useFrappeGetCall("customer_portal.api.v1.is_customer");
 
-  if (isLoading || isValidating) {
-    return <LoadingScreen/>
+
+
+  if (isLoading || isValidating || is_customer_query.isLoading) {
+    return <LoadingScreen />
+  }
+  if (!currentUser ) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
+        <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
+          <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
+          <p className="text-slate-600 mb-6">You must be logged.</p>
+          <button
+            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+          >
+            Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if ( !is_customer_query.data?.message?.is_customer) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
+        <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
+          <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
+          <p className="text-slate-600 mb-6">You must be logged in as a customer to access the Customer Portal.</p>
+          <button
+            // onClick={() => login()}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+          >
+            Login
+          </button>
+        </div>
+      </div>
+    );
   }
   return (
     <div className="min-h-screen bg-[#f8fafc] flex font-sans text-slate-900">
@@ -104,19 +139,19 @@ const MainLayout = () => {
               </button>
             )} */}
           </div>
-            <div className="flex items-center gap-8">
+          <div className="flex items-center gap-8">
             <button className="p-3 text-slate-400 hover:text-indigo-600 transition-colors bg-white border border-slate-200 rounded-xl relative"><Bell size={20} /><span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span></button>
             <div className="flex items-center gap-4 border-l border-slate-200 pl-8">
               <div className="text-right hidden sm:block"><p className="text-sm font-bold text-slate-900 leading-tight">{currentUser}</p><p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">Premium Customer</p></div>
               <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black border-2 border-white shadow-inner">AJ</div>
               <button
-              onClick={() => logout()}
-              className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-all rounded-xl border border-slate-200"
+                onClick={() => logout()}
+                className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-all rounded-xl border border-slate-200"
               >
-              Logout
+                Logout
               </button>
             </div>
-            </div>
+          </div>
         </header>
 
         <div className="p-10"> <Outlet /></div>
