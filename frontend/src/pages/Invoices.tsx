@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { useFrappeGetCall } from "frappe-react-sdk";
 import ActionButtons from '../components/Download';
 import DataToolbar from '../components/DataToolbar';
+import Modal from '../components/ViewRecords'; // import your modal
 
+// Status Badge component
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
     Paid: 'bg-emerald-100 text-emerald-700',
@@ -28,6 +30,7 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
+// Column & DocumentListView types
 interface Column {
   label: string;
   key: string;
@@ -39,9 +42,10 @@ interface DocumentListViewProps {
   data: any[];
   columns: Column[];
   icon: React.ElementType;
+  onView?: (item: any) => void; // pass down view handler
 }
 
-const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListViewProps) => (
+const DocumentListView = ({ title, data, columns, icon: Icon, onView }: DocumentListViewProps) => (
   <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
       <div className="flex items-center gap-3">
@@ -87,7 +91,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
                 ))}
                 <td className="px-6 py-4 text-right">
                   <ActionButtons
-                    onView={() => console.log("View clicked for", item.name)}
+                    onView={() => onView && onView(item)} // call onView from parent
                     onDownload={() => console.log("Download clicked for", item.name)}
                   />
                 </td>
@@ -102,6 +106,19 @@ const DocumentListView = ({ title, data, columns, icon: Icon }: DocumentListView
 
 const InvoicesPage = () => {
   const { data, isLoading, error } = useFrappeGetCall("customer_portal.api.v1.get_sales_invoice_data");
+
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleViewInvoice = (invoice: any) => {
+    setSelectedInvoice(invoice);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setSelectedInvoice(null);
+    setIsModalOpen(false);
+  };
 
   const columns: Column[] = [
     { label: 'Invoice ID', key: 'name' },
@@ -136,7 +153,24 @@ const InvoicesPage = () => {
         data={invoices} 
         columns={columns} 
         icon={FileText} 
+        onView={handleViewInvoice} // pass the handler
       />
+
+      {/* Modal to view invoice details */}
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="Invoice Details">
+        {selectedInvoice ? (
+          <div className="space-y-2 text-sm">
+            <p><strong>Invoice ID:</strong> {selectedInvoice.name}</p>
+            <p><strong>Date:</strong> {selectedInvoice.posting_date}</p>
+            <p><strong>Due Date:</strong> {selectedInvoice.due_date}</p>
+            <p><strong>Total:</strong> {selectedInvoice.total}</p>
+            <p><strong>Status:</strong> {selectedInvoice.status}</p>
+            {/* Add more fields as needed */}
+          </div>
+        ) : (
+          <p>Loading...</p>
+        )}
+      </Modal>
     </div>
   );
 };
