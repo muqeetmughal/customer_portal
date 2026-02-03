@@ -2,73 +2,33 @@ import React, { useState, useMemo } from 'react';
 import {
   LayoutDashboard,
   BarChart3,
-  FileText,
-  ShoppingBag,
   Quote,
   Truck,
   Bell,
   Search,
-  User,
   MoreVertical,
   ArrowUpRight,
   ArrowDownRight,
-  Clock,
   DollarSign,
   CreditCard,
   Wallet,
-  Flame,
-  ChevronRight,
-  Download,
-  Filter,
-  Eye,
   BookOpen,
-  Calendar,
-  ArrowRightLeft,
   Package,
   ShoppingCart,
-  Plus,
-  Minus,
-  Trash2,
-  CheckCircle2
+  Download,
+  Eye
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
-} from 'recharts';
 
-// --- Expanded Mock Data ---
-const SALES_DATA = [
-  { month: 'Jan', orders: 45 }, { month: 'Feb', orders: 52 }, { month: 'Mar', orders: 48 },
-  { month: 'Apr', orders: 61 }, { month: 'May', orders: 55 }, { month: 'Jun', orders: 67 }, { month: 'Jul', orders: 72 },
-];
+// Import new modular components
+import Analytics from './Analytics';
+import Ledger from './Ledger';
+import Inventory from './Inventory';
 
-const INVOICE_STATUS_DATA = [
-  { name: 'Paid', value: 400, color: '#10b981' },
-  { name: 'Pending', value: 300, color: '#f59e0b' },
-  { name: 'Overdue', value: 100, color: '#ef4444' },
-];
-
-const PURCHASE_HISTORY_DATA = [
-  { name: 'Electronics', value: 4500 }, { name: 'Office Supplies', value: 1200 },
-  { name: 'Services', value: 3000 }, { name: 'Hardware', value: 2100 },
-];
-
-const TOP_ITEMS = [
-  { name: 'UltraWide Monitor 34"', sales: 124, revenue: '$43,400', growth: '+12%' },
-  { name: 'Ergonomic Desk Chair', sales: 98, revenue: '$28,900', growth: '+8%' },
-  { name: 'Wireless Mechanical KB', sales: 82, revenue: '$12,300', growth: '+15%' },
-  { name: 'USB-C Docking Station', sales: 75, revenue: '$11,250', growth: '-2%' },
+// --- Mock Data ---
+const RECENT_ACTIVITIES = [
+  { id: 1, type: 'Invoice', desc: 'Invoice #INV-2024-001 paid', date: '2 hours ago', status: 'Completed', amount: '$1,200.00' },
+  { id: 2, type: 'Order', desc: 'Sales Order #SO-992 confirmed', date: '5 hours ago', status: 'Pending', amount: '$3,450.00' },
+  { id: 3, type: 'Quote', desc: 'Quote #QT-441 expired', date: '1 day ago', status: 'Expired', amount: '$850.00' },
 ];
 
 const QUOTATIONS = [
@@ -83,41 +43,11 @@ const DELIVERY_NOTES = [
   { id: 'DEL-94', order: 'SO-995', date: 'Oct 21, 2024', tracking: 'TRK99220', status: 'Pending' },
 ];
 
-const LEDGER_ENTRIES = [
-  { date: 'Oct 01, 2024', type: 'Opening Balance', ref: '-', debit: '0.00', credit: '0.00', balance: '$2,500.00' },
-  { date: 'Oct 05, 2024', type: 'Invoice', ref: 'INV-2024-001', debit: '1,200.00', credit: '0.00', balance: '$3,700.00' },
-  { date: 'Oct 08, 2024', type: 'Payment', ref: 'PAY-8821', debit: '0.00', credit: '1,200.00', balance: '$2,500.00' },
-  { date: 'Oct 12, 2024', type: 'Invoice', ref: 'INV-2024-002', debit: '3,450.00', credit: '0.00', balance: '$5,950.00' },
-  { date: 'Oct 15, 2024', type: 'Credit Note', ref: 'CRN-002', debit: '0.00', credit: '500.00', balance: '$5,450.00' },
-  { date: 'Oct 20, 2024', type: 'Payment', ref: 'PAY-8910', debit: '0.00', credit: '2,000.00', balance: '$3,450.00' },
-];
-
-const INVENTORY_ITEMS = [
-  { id: 'PRD-001', name: 'UltraWide Monitor 34"', price: 499.00, stock: 15, category: 'Electronics', image: '🖥️' },
-  { id: 'PRD-002', name: 'Ergonomic Desk Chair', price: 295.00, stock: 24, category: 'Furniture', image: '💺' },
-  { id: 'PRD-003', name: 'Wireless Mechanical KB', price: 150.00, stock: 40, category: 'Electronics', image: '⌨️' },
-  { id: 'PRD-004', name: 'USB-C Docking Station', price: 125.00, stock: 10, category: 'Accessories', image: '🔌' },
-  { id: 'PRD-005', name: 'Noise Cancelling Headset', price: 300.00, stock: 12, category: 'Electronics', image: '🎧' },
-  { id: 'PRD-006', name: 'Standing Desk Frame', price: 450.00, stock: 5, category: 'Furniture', image: '🧗' },
-];
-
-const RECENT_ACTIVITIES = [
-  { id: 1, type: 'Invoice', desc: 'Invoice #INV-2024-001 paid', date: '2 hours ago', status: 'Completed', amount: '$1,200.00' },
-  { id: 2, type: 'Order', desc: 'Sales Order #SO-992 confirmed', date: '5 hours ago', status: 'Pending', amount: '$3,450.00' },
-  { id: 3, type: 'Quote', desc: 'Quote #QT-441 expired', date: '1 day ago', status: 'Expired', amount: '$850.00' },
-];
-
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#f97316'];
-
 const CustomerPortal = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState<any[]>([]);
 
-  const cartTotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  }, [cart]);
-
-  const addToCart = (product) => {
+  const addToCart = (product: any) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
@@ -127,21 +57,7 @@ const CustomerPortal = () => {
     });
   };
 
-  const updateQuantity = (id, delta) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: newQty };
-      }
-      return item;
-    }));
-  };
-
-  const removeFromCart = (id) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-  };
-
-  const StatCard = ({ title, value, icon: Icon, trend, trendValue, colorClass, isCurrency }) => (
+  const StatCard = ({ title, value, icon: Icon, trend, trendValue, colorClass, isCurrency }: any) => (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start">
         <div className={`p-3 rounded-xl ${colorClass}`}>
@@ -165,8 +81,8 @@ const CustomerPortal = () => {
     </div>
   );
 
-  const StatusBadge = ({ status }) => {
-    const styles = {
+  const StatusBadge = ({ status }: any) => {
+    const styles: any = {
       Paid: 'bg-emerald-100 text-emerald-700',
       Pending: 'bg-amber-100 text-amber-700',
       Overdue: 'bg-rose-100 text-rose-700',
@@ -177,9 +93,6 @@ const CustomerPortal = () => {
       'In Transit': 'bg-sky-100 text-sky-700',
       Active: 'bg-emerald-100 text-emerald-700',
       Expired: 'bg-slate-100 text-slate-700',
-      Invoice: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
-      Payment: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-      'Credit Note': 'bg-rose-50 text-rose-600 border border-rose-100',
     };
     return (
       <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${styles[status] || 'bg-slate-100 text-slate-600'}`}>
@@ -197,80 +110,41 @@ const CustomerPortal = () => {
         <StatCard title="Ledger Balance" value="$3,450.00" icon={BookOpen} colorClass="bg-indigo-600" isCurrency />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="text-lg font-bold text-slate-800">Recent Activities</h2>
-              <button className="text-sm font-medium text-indigo-600 hover:text-indigo-700">Explore Logs</button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
-                  <tr>
-                    <th className="px-6 py-4">Activity</th>
-                    <th className="px-6 py-4">Date</th>
-                    <th className="px-6 py-4">Amount</th>
-                    <th className="px-6 py-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {RECENT_ACTIVITIES.map((activity) => (
-                    <tr key={activity.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <p className="text-sm font-bold text-slate-900">{activity.type}</p>
-                        <p className="text-xs text-slate-500">{activity.desc}</p>
-                      </td>
-                      <td className="px-6 py-4 text-xs text-slate-500 font-medium">{activity.date}</td>
-                      <td className="px-6 py-4 text-sm font-bold text-slate-900">{activity.amount}</td>
-                      <td className="px-6 py-4"><StatusBadge status={activity.status} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+          <h2 className="text-lg font-bold text-slate-800">Recent Activities</h2>
+          <button className="text-sm font-medium text-indigo-600 hover:text-indigo-700">Explore Logs</button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50 text-slate-500 text-xs uppercase font-bold">
+              <tr>
+                <th className="px-6 py-4">Activity</th>
+                <th className="px-6 py-4">Date</th>
+                <th className="px-6 py-4">Amount</th>
+                <th className="px-6 py-4">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {RECENT_ACTIVITIES.map((activity) => (
+                <tr key={activity.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-6 py-4">
+                    <p className="text-sm font-bold text-slate-900">{activity.type}</p>
+                    <p className="text-xs text-slate-500">{activity.desc}</p>
+                  </td>
+                  <td className="px-6 py-4 text-xs text-slate-500 font-medium">{activity.date}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900">{activity.amount}</td>
+                  <td className="px-6 py-4"><StatusBadge status={activity.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 
-  const InventoryView = () => (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Product Catalog</h2>
-          <p className="text-sm text-slate-500">Browse and order items directly</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50"><Filter size={20}/></button>
-          <button className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all"><Plus size={20}/> New Request</button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-        {INVENTORY_ITEMS.map((item) => (
-          <div key={item.id} className="bg-white rounded-3xl border border-slate-100 p-6 hover:shadow-xl hover:shadow-slate-200/50 transition-all group">
-            <div className="flex justify-between items-start mb-6">
-              <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">{item.image}</div>
-              <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-wider">{item.category}</span>
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
-            <p className="text-xs text-slate-400 mb-4">Item ID: {item.id}</p>
-            <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase">Price</p>
-                <p className="text-xl font-black text-slate-900">${item.price.toFixed(2)}</p>
-              </div>
-              <button onClick={() => addToCart(item)} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"><ShoppingCart size={20}/></button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  const DocumentListView = ({ title, data, columns, icon: Icon }) => (
+  const DocumentListView = ({ title, data, columns, icon: Icon }: any) => (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
@@ -278,7 +152,6 @@ const CustomerPortal = () => {
           <div><h2 className="text-2xl font-bold text-slate-900">{title}</h2><p className="text-sm text-slate-500">Manage your {title.toLowerCase()} records</p></div>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
-          <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"><Filter size={16} /> Filter</button>
           <button className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200"><Download size={16} /> Export All</button>
         </div>
       </div>
@@ -288,19 +161,16 @@ const CustomerPortal = () => {
           <table className="w-full text-left">
             <thead className="bg-slate-50/50 text-slate-500 text-[11px] uppercase tracking-wider font-bold">
               <tr>
-                {columns.map((col, i) => <th key={i} className={`px-6 py-5 ${col.align === 'right' ? 'text-right' : ''}`}>{col.label}</th>)}
+                {columns.map((col: any, i: number) => <th key={i} className={`px-6 py-5 ${col.align === 'right' ? 'text-right' : ''}`}>{col.label}</th>)}
                 <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {data.map((item, idx) => (
+              {data.map((item: any, idx: number) => (
                 <tr key={idx} className="hover:bg-slate-50/80 transition-colors group">
-                  {columns.map((col, i) => (
+                  {columns.map((col: any, i: number) => (
                     <td key={i} className={`px-6 py-4 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      {col.key === 'status' || col.key === 'type' ? <StatusBadge status={item[col.key]} /> :
-                       col.key === 'id' || col.key === 'balance' ? <span className="font-bold text-slate-900">{item[col.key]}</span> :
-                       col.key === 'debit' ? <span className="text-sm font-semibold text-rose-600">{item[col.key] !== '0.00' ? `+ ${item[col.key]}` : '-'}</span> :
-                       col.key === 'credit' ? <span className="text-sm font-semibold text-emerald-600">{item[col.key] !== '0.00' ? `- ${item[col.key]}` : '-'}</span> :
+                      {col.key === 'status' ? <StatusBadge status={item[col.key]} /> :
                        <span className="text-sm text-slate-600">{item[col.key]}</span>}
                     </td>
                   ))}
@@ -322,45 +192,11 @@ const CustomerPortal = () => {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard': return <DashboardView />;
-      case 'inventory': return <InventoryView />;
-      case 'analytics':
-        return (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-bottom-4 duration-500">
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold mb-6 text-slate-800">Sales Velocity</h3>
-              <div className="h-80"><ResponsiveContainer width="100%" height="100%"><LineChart data={SALES_DATA}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} /><Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} /><Line type="monotone" dataKey="orders" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }} /></LineChart></ResponsiveContainer></div>
-            </div>
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-bold text-slate-800">Top Items</h3><Flame size={18} className="text-orange-500" /></div>
-              <div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={TOP_ITEMS.map(i => ({name: i.name.split(' ')[0], sales: i.sales}))}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11}} /><Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none' }} /><Bar dataKey="sales" fill="#6366f1" radius={[6, 6, 0, 0]} barSize={40} /></BarChart></ResponsiveContainer></div>
-            </div>
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold mb-6 text-slate-800">Collections Overview</h3>
-              <div className="h-80"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={INVOICE_STATUS_DATA} innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">{INVOICE_STATUS_DATA.map((entry, index) => <Cell key={index} fill={entry.color} />)}</Pie><Tooltip /><Legend verticalAlign="bottom" height={36} /></PieChart></ResponsiveContainer></div>
-            </div>
-            <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-              <h3 className="text-lg font-bold mb-6 text-slate-800">Delivery Distribution</h3>
-              <div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={PURCHASE_HISTORY_DATA} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} /><Tooltip /><Bar dataKey="value" fill="#8b5cf6" radius={[0, 10, 10, 0]} barSize={32} /></BarChart></ResponsiveContainer></div>
-            </div>
-          </div>
-        );
+      case 'inventory': return <Inventory addToCart={addToCart} />;
+      case 'analytics': return <Analytics />;
+      case 'ledger': return <Ledger />;
       case 'quotes': return <DocumentListView title="Quotations" data={QUOTATIONS} columns={[{label: 'Quote ID', key: 'id'}, {label: 'Created', key: 'date'}, {label: 'Valid Until', key: 'valid'}, {label: 'Total', key: 'amount'}, {label: 'Status', key: 'status'}]} icon={Quote} />;
       case 'delivery': return <DocumentListView title="Delivery Notes" data={DELIVERY_NOTES} columns={[{label: 'Delivery ID', key: 'id'}, {label: 'Order Ref', key: 'order'}, {label: 'Dispatch Date', key: 'date'}, {label: 'Tracking #', key: 'tracking'}, {label: 'Status', key: 'status'}]} icon={Truck} />;
-      case 'ledger': return (
-        <DocumentListView
-          title="Customer Ledger"
-          data={LEDGER_ENTRIES}
-          columns={[
-            {label: 'Posting Date', key: 'date'},
-            {label: 'Type', key: 'type'},
-            {label: 'Reference', key: 'ref'},
-            {label: 'Debit (+)', key: 'debit', align: 'right'},
-            {label: 'Credit (-)', key: 'credit', align: 'right'},
-            {label: 'Balance', key: 'balance', align: 'right'}
-          ]}
-          icon={BookOpen}
-        />
-      );
       default: return <DashboardView />;
     }
   };

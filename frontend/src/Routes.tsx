@@ -9,6 +9,8 @@ import Invoices from "./pages/Invoices";
 import SalesOrdersPage from "./pages/SalesOrdersPage";
 import QuotationsPage from "./pages/Quotation";
 import DeliveryNotesPage from "./pages/DeliveryNote";
+import Ledger from "./pages/Ledger";
+import Inventory from "./pages/Inventory";
 export const router = createBrowserRouter(
     [
         {
@@ -54,6 +56,14 @@ export const router = createBrowserRouter(
                 {
                     path: "delivery",
                     element: <DeliveryNotesPage />,
+                },
+                {
+                    path: "ledger",
+                    element: <Ledger />,
+                },
+                {
+                    path: "inventory",
+                    element: <Inventory />,
                 },
                 {
                     path : "*",

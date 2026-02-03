@@ -1,32 +1,70 @@
 import frappe
 from frappe import _
-from erpnext.accounts.utils import get_balance_on
 
 @frappe.whitelist()
 def get_customer_dashboard_data():
+    total_sales_amount = frappe.db.get_value("Sales Invoice", filters={"docstatus": 1}, fieldname="sum(grand_total)") or 0.0
+    total_outstanding_amount = frappe.db.get_value("Sales Invoice", filters={"docstatus": 1, "outstanding_amount": [">", 0]}, fieldname="sum(outstanding_amount)") or 0.0
 
 
-	return {
-		"total_sales": {
-			"amount": 125000.00,
-			"change_percentage": 12.5,
-			"change_text": "vs last month"
-		},
-		"outstanding": {
-			"amount": 35000.00,
-			"change_percentage": -5.0,
-			"change_text": "vs last month"
-		},
-		"paid_to_date": {
-			"amount": 90000.00,
-			"change_percentage": 18.0,
-			"change_text": "vs last month"
-		},
-		"ledger_balance": {
-			"amount": -35000.00
-		}
-	}
+    return {
+        "total_sales": {
+            "amount": total_sales_amount,
+            "change_percentage": 12.5, 
+            "change_text": "vs last month"
+        },
+        "outstanding": {
+            "amount": total_outstanding_amount,
+            "change_percentage": -5.0,
+            "change_text": "vs last month"
+        },
+        "paid_to_date": {
+            "amount": 90000.00,
+            "change_percentage": 18.0,
+            "change_text": "vs last month"
+        },
+        "ledger_balance": {
+            "amount": -35000.00
+        }
+    }
 
+
+@frappe.whitelist()
+def get_recent_activities(): # dashboard recent activities 
+
+    activities = []
+    
+    doctypes = {
+        "Sales Invoice": {"label": "Invoice", "icon": "CreditCard"},
+        "Sales Order": {"label": "Order", "icon": "ShoppingCart"},
+        "Quotation": {"label": "Quote", "icon": "FileText"},
+        "Delivery Note": {"label": "Delivery", "icon": "Truck"}
+    }
+    
+    for doctype, meta in doctypes.items():
+        # Fetch the 5 most recent records for each doctype
+        records = frappe.get_all(
+            doctype,
+            fields=["name", "status", "grand_total", "modified", "creation"],
+            order_by="modified desc",
+            limit=5
+        )
+        
+        for record in records:
+            activities.append({
+                "id": f"{doctype}-{record.name}",
+                "type": meta["label"],
+                "desc": f"{meta['label']} #{record.name}",
+                "date": record.modified,
+                "status": record.status,
+                "amount": record.grand_total,
+                "timestamp": record.modified
+            })
+            
+    # Sort all activities by timestamp descending and take the top 10
+    activities.sort(key=lambda x: x['timestamp'], reverse=True)
+    
+    return activities[:10]
 
 
 @frappe.whitelist() #sales invoice data
