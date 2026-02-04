@@ -24,7 +24,7 @@ const LEDGER_ENTRIES: LedgerEntry[] = [
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
-    'Opening Balance': 'bg-slate-100 text-slate-700',
+    'Opening Balance': 'bg-slate-100 text-slate-700', 
     Invoice: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
     Payment: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
     'Credit Note': 'bg-rose-50 text-rose-600 border border-rose-100',

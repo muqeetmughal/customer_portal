@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Quote, X, Search, Check } from 'lucide-react';
 import { useFrappeGetCall } from "frappe-react-sdk";
 import ActionButtons from '../components/Download';
@@ -6,7 +6,6 @@ import DataToolbar from '../components/DataToolbar';
 import ViewRecords from '../components/ViewRecords';
 import FilterPanel from '../components/FilterPanel';
 import ExportSelection from '../components/ExportSelection';
-import { jsPDF } from "jspdf";
 
 /* ---------------- Status Badge ---------------- */
 const StatusBadge = ({ status }: { status: string }) => {
@@ -66,6 +65,25 @@ const DocumentListView = ({
   
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Ref for the toolbar container to handle click-outside for the filter panel
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) {
+        setIsFilterOpen(false);
+      }
+    };
+
+    if (isFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isFilterOpen]);
 
   const handleFilterChange = (key: string, value: string) => {
     setActiveFilters(prev => {
@@ -134,7 +152,7 @@ const DocumentListView = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3 relative">
+        <div className="flex items-center gap-3 relative" ref={toolbarRef}>
           {isSelectionMode ? (
             <div className="flex items-center gap-2 animate-in zoom-in-95 duration-200">
               <button 
@@ -334,16 +352,9 @@ const QuotationsPage = () => {
   };
 
   const handleDownloadQuotation = (quotation: any) => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text(`Quotation ID: ${quotation.id}`, 20, 20);
-    doc.setFontSize(12);
-    doc.text(`Created On: ${quotation.created}`, 20, 30);
-    doc.text(`Valid Until: ${quotation.valid}`, 20, 40);
-    doc.text(`Total: ${quotation.total}`, 20, 50);
-    doc.text(`Status: ${quotation.status}`, 20, 60);
-
-    doc.save(`Quotation_${quotation.id}.pdf`);
+    if (!quotation) return;
+    const printUrl = `/app/print/Quotation/${quotation.id}`;
+    window.open(printUrl, '_blank');
   };
 
   if (isLoading) {

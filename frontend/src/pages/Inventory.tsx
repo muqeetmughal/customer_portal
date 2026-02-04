@@ -1,20 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Filter, ShoppingCart, Search, X } from 'lucide-react';
+import { Plus, Filter, ShoppingCart, Search, X } from 'lucide-react';
+import { useFrappeGetCall } from "frappe-react-sdk";
 import FilterPanel from '../components/FilterPanel';
-const INVENTORY_ITEMS = [
-  { id: 'PRD-001', name: 'UltraWide Monitor 34"', price: 499.00, stock: 15, category: 'Electronics', image: '🖥️' },
-  { id: 'PRD-002', name: 'Ergonomic Desk Chair', price: 295.00, stock: 24, category: 'Furniture', image: '💺' },
-  { id: 'PRD-003', name: 'Wireless Mechanical KB', price: 150.00, stock: 40, category: 'Electronics', image: '⌨️' },
-  { id: 'PRD-004', name: 'USB-C Docking Station', price: 125.00, stock: 10, category: 'Accessories', image: '🔌' },
-  { id: 'PRD-005', name: 'Noise Cancelling Headset', price: 300.00, stock: 12, category: 'Electronics', image: '🎧' },
-  { id: 'PRD-006', name: 'Standing Desk Frame', price: 450.00, stock: 5, category: 'Furniture', image: '🧗' },
-];
 
 interface InventoryProps {
   addToCart: (product: any) => void;
 }
 
 const Inventory = ({ addToCart }: InventoryProps) => {
+
+  const { data, error, isLoading } = useFrappeGetCall(
+    "customer_portal.api.v1.get_product_catalog"
+  );
+
+  const INVENTORY_ITEMS = Array.isArray(data?.message)
+    ? data.message
+    : [];
+
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
 
@@ -34,15 +36,25 @@ const Inventory = ({ addToCart }: InventoryProps) => {
   };
 
   const filteredData = useMemo(() => {
-    return INVENTORY_ITEMS.filter((item) => {
+    return INVENTORY_ITEMS.filter((item: any) => {
       return Object.entries(activeFilters).every(([key, value]) => {
         if (!value) return true;
-        return String(item[key as keyof typeof item] || '').toLowerCase().includes(value.toLowerCase());
+        return String(item[key] || '')
+          .toLowerCase()
+          .includes(value.toLowerCase());
       });
     });
-  }, [activeFilters]);
+  }, [activeFilters, INVENTORY_ITEMS]);
 
   const activeFilterCount = Object.keys(activeFilters).length;
+
+  if (isLoading) {
+    return <div className="p-10 text-center">Loading products...</div>;
+  }
+
+  if (error) {
+    return <div className="p-10 text-center text-red-500">Failed to load products</div>;
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -63,6 +75,7 @@ const Inventory = ({ addToCart }: InventoryProps) => {
               </span>
             )}
           </button>
+
           <button className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">
             <Plus size={20}/> New Request
           </button>
@@ -81,12 +94,18 @@ const Inventory = ({ addToCart }: InventoryProps) => {
 
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Active Filters:</span>
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
+            Active Filters:
+          </span>
           {Object.entries(activeFilters).map(([key, value]) => (
             <div key={key} className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 text-xs font-medium">
-              <span className="opacity-60">{columns.find(c => c.key === key)?.label}:</span>
+              <span className="opacity-60">
+                {columns.find(c => c.key === key)?.label}:
+              </span>
               <span>{value}</span>
-              <button onClick={() => handleFilterChange(key, '')} className="hover:text-indigo-900"><X size={12} /></button>
+              <button onClick={() => handleFilterChange(key, '')} className="hover:text-indigo-900">
+                <X size={12} />
+              </button>
             </div>
           ))}
         </div>
@@ -94,20 +113,36 @@ const Inventory = ({ addToCart }: InventoryProps) => {
 
       {filteredData.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredData.map((item) => (
+          {filteredData.map((item: any) => (
             <div key={item.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group">
               <div className="flex justify-between items-start mb-6">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">{item.image}</div>
-                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-wider">{item.category}</span>
+                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                  {item.image
+                    ? <img src={item.image} className="w-full h-full object-cover rounded-2xl"/>
+                    : "📦"}
+                </div>
+                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                  {item.category}
+                </span>
               </div>
+
               <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
               <p className="text-xs text-slate-400 mb-4">Item ID: {item.id}</p>
+
               <div className="flex items-center justify-between pt-4 border-t border-slate-50">
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Price</p>
-                  <p className="text-xl font-black text-slate-900">${item.price.toFixed(2)}</p>
+                  <p className="text-xl font-black text-slate-900">
+                    ${Number(item.price || 0).toFixed(2)}
+                  </p>
                 </div>
-                <button onClick={() => addToCart(item)} className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"><ShoppingCart size={20}/></button>
+
+                <button
+                  onClick={() => addToCart(item)}
+                  className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"
+                >
+                  <ShoppingCart size={20}/>
+                </button>
               </div>
             </div>
           ))}
@@ -115,9 +150,16 @@ const Inventory = ({ addToCart }: InventoryProps) => {
       ) : (
         <div className="bg-white rounded-3xl border border-slate-100 p-20 text-center">
           <div className="flex flex-col items-center gap-3">
-            <div className="p-4 bg-slate-50 rounded-full"><Search className="h-8 w-8 text-slate-300" /></div>
+            <div className="p-4 bg-slate-50 rounded-full">
+              <Search className="h-8 w-8 text-slate-300" />
+            </div>
             <p className="text-slate-900 font-bold">No products found</p>
-            <button onClick={() => setActiveFilters({})} className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50">Clear all filters</button>
+            <button
+              onClick={() => setActiveFilters({})}
+              className="mt-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50"
+            >
+              Clear all filters
+            </button>
           </div>
         </div>
       )}

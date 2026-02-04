@@ -24,6 +24,7 @@ const TOP_ITEMS = [
 ];
 
 const Dashboard = () => {
+    // ✅ Fetch unified dashboard metrics
     const metrics_query = useFrappeGetCall("customer_portal.api.v1.get_customer_dashboard_data");
     
     const activities_query = useFrappeGetCall("customer_portal.api.v1.get_recent_activities");
