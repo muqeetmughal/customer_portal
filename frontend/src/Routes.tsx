@@ -4,6 +4,7 @@ import MainLayout from "./layouts/MainLayout";
 import NotFound from "./components/NotFound";
 import Dashboard from "./pages/Dashboard";
 import Analytics from "./pages/Analytics";
+import Login from "./pages/Login";
 import ErrorBoundry from "./components/ErrorBoundry";
 import Invoices from "./pages/Invoices";
 import SalesOrdersPage from "./pages/SalesOrdersPage";
@@ -13,6 +14,10 @@ import Ledger from "./pages/Ledger";
 import Inventory from "./pages/Inventory";
 export const router = createBrowserRouter(
     [
+        {
+            path: "/login",
+            element: <Login currentPath="/login" />,
+        },
         {
             path: "/",
             element: <MainLayout />,

@@ -61,7 +61,6 @@ const DocumentListView = ({
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Ref for the toolbar container to handle click-outside for the filter panel
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

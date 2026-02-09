@@ -1,9 +1,9 @@
 import frappe
 from frappe import _
 from frappe.utils import getdate, add_months, today
+from datetime import date
 
-import frappe
-from frappe.utils import today
+
 
 @frappe.whitelist()
 def get_customer_dashboard_data():
@@ -119,9 +119,6 @@ def get_customer_dashboard_data():
 
 
 
-
-
-
 @frappe.whitelist() #sales velocity monthly
 def get_sales_velocity_monthly(from_date=None, to_date=None):
     if not to_date:
@@ -153,6 +150,25 @@ def get_sales_velocity_monthly(from_date=None, to_date=None):
         "sales": [float(d["total_sales"] or 0) for d in data],
         "raw": data
     }
+
+
+@frappe.whitelist()
+def get_sales_invoice_status_count(): # Collections Overview pie chart 
+    result = frappe.db.sql("""
+        SELECT 
+            status,
+            COUNT(*) AS count
+        FROM `tabSales Invoice`
+        WHERE status IN ('Draft', 'Overdue', 'Paid')
+        GROUP BY status
+    """, as_dict=True)
+
+    counts = {"Draft": 0, "Overdue": 0, "Paid": 0}
+    for row in result:
+        counts[row["status"]] = row["count"]
+
+    return counts
+
 
 @frappe.whitelist() #top selling items
 def get_top_selling_items(limit=10):
@@ -256,7 +272,7 @@ def get_sales_order_data(): #sales order data
             grand_total,
             status
         FROM `tabSales Order`
-        WHERE docstatus = 1 AND customer = %s
+        WHERE customer = %s
         ORDER BY transaction_date DESC
     """, (customer_name,), as_dict=True)
 
@@ -319,116 +335,9 @@ def get_delivery_note_data(): #deliveru note data
 
     return delivery_notes
 
-@frappe.whitelist()
-def is_customer():
-	return {
-		"is_customer" : True
-	}
-
-	# """
-	# Returns customer dashboard statistics including sales, outstanding, paid amounts and ledger balance
-	# """
-	# customer = frappe.session.user
-
-	# # Get current month data
-	# from frappe.utils import (
-	# 	nowdate,
-	# 	get_first_day,
-	# 	get_last_day,
-	# 	add_months,
-	# 	flt
-	# )
-
-	# current_month_start = get_first_day(nowdate())
-	# current_month_end = get_last_day(nowdate())
-
-	# last_month_start = get_first_day(add_months(nowdate(), -1))
-	# last_month_end = get_last_day(add_months(nowdate(), -1))
-
-	# # Get customer name from contact
-	# customer_name = frappe.db.get_value(
-	# 	"Contact",
-	# 	{"user": customer},
-	# 	"name"
-	# )
-
-	# if customer_name:
-	# 	customer_link = frappe.db.get_value(
-	# 		"Dynamic Link",
-	# 		{
-	# 			"link_doctype": "Customer",
-	# 			"parenttype": "Contact",
-	# 			"parent": customer_name
-	# 		},
-	# 		"link_name"
-	# 	)
-	# else:
-	# 	customer_link = None
-
-	# # Calculate current month sales
-	# current_sales = frappe.db.sql("""
-	# 	SELECT SUM(grand_total) as total
-	# 	FROM `tabSales Invoice`
-	# 	WHERE customer = %s
-	# 	AND docstatus = 1
-	# 	AND posting_date BETWEEN %s AND %s
-	# """, (customer_link, current_month_start, current_month_end), as_dict=True)[0].total or 0
-
-	# # Calculate last month sales
-	# last_sales = frappe.db.sql("""
-	# 	SELECT SUM(grand_total) as total
-	# 	FROM `tabSales Invoice`
-	# 	WHERE customer = %s
-	# 	AND docstatus = 1
-	# 	AND posting_date BETWEEN %s AND %s
-	# """, (customer_link, last_month_start, last_month_end), as_dict=True)[0].total or 0
-
-	# # Calculate sales percentage change
-	# sales_change = ((current_sales - last_sales) / last_sales * 100) if last_sales else 0
-
-	# # Get outstanding amount
-	# outstanding = frappe.db.get_value(
-	# 	"Customer",
-	# 	customer_link,
-	# 	"total_unpaid"
-	# ) or 0
-
-	# # Calculate paid to date (total invoiced - outstanding)
-	# total_invoiced = frappe.db.sql("""
-	# 	SELECT SUM(grand_total) as total
-	# 	FROM `tabSales Invoice`
-	# 	WHERE customer = %s
-	# 	AND docstatus = 1
-	# """, (customer_link,), as_dict=True)[0].total or 0
-
-	# paid_to_date = total_invoiced - outstanding
-
-	# # Get ledger balance
-	# ledger_balance = get_balance_on(party_type="Customer", party=customer_link)
-
-	# return {
-	# 	"total_sales": {
-	# 		"amount": flt(current_sales, 2),
-	# 		"change_percentage": flt(sales_change, 2),
-	# 		"change_text": "vs last month"
-	# 	},
-	# 	"outstanding": {
-	# 		"amount": flt(outstanding, 2),
-	# 		"change_percentage": -5.0,  # Calculate based on previous period
-	# 		"change_text": "vs last month"
-	# 	},
-	# 	"paid_to_date": {
-	# 		"amount": flt(paid_to_date, 2),
-	# 		"change_percentage": 18.0,  # Calculate based on previous period
-	# 		"change_text": "vs last month"
-	# 	},
-	# 	"ledger_balance": {
-	# 		"amount": flt(ledger_balance, 2)
-	# 	}
-	# }
 
 @frappe.whitelist()
-def get_product_catalog():
+def get_product_catalog(): #items data for inventory page
     data = frappe.db.sql("""
         SELECT
             i.name AS id,
@@ -461,3 +370,209 @@ def get_product_catalog():
     """, as_dict=True)
 
     return data
+
+
+
+
+@frappe.whitelist()
+def get_customer_ledger_data(): #customer ledger data
+
+    current_user = frappe.session.user
+    
+    customer_name = frappe.db.get_value(
+        "Portal User",
+        {"user": current_user},
+        "parent"
+    )
+    
+    if not customer_name:
+        return []
+
+    query = """
+    WITH RawData AS (
+        SELECT
+            gle.posting_date,
+            gle.voucher_type,
+            gle.voucher_no,
+            gle.debit,
+            gle.credit,
+            gle.creation,
+            gle.name
+        FROM `tabGL Entry` gle
+        JOIN `tabAccount` acc ON acc.name = gle.account
+        WHERE
+            acc.account_type = 'Receivable'
+            AND gle.party_type = 'Customer'
+            AND gle.party = %s
+            AND gle.is_cancelled = 0
+    ),
+    CalculatedLedger AS (
+        -- Calculate the running balance
+        SELECT
+            posting_date,
+            voucher_type,
+            voucher_no,
+            debit,
+            credit,
+            SUM(debit - credit) OVER (ORDER BY posting_date, creation, name) AS balance,
+            2 AS sort_order -- Transactions have sort order 2
+        FROM RawData
+    )
+    -- Combine everything into the final report
+    SELECT * FROM (
+        -- 1. Opening Balance Row (Always 0 for full history, or calculated if date filtered)
+        SELECT 
+            NULL AS posting_date, 
+            'Opening Balance' AS voucher_type, 
+            NULL AS voucher_no, 
+            0.0 AS debit, 
+            0.0 AS credit, 
+            0.0 AS balance, 
+            1 AS sort_order
+        
+        UNION ALL
+        
+        -- 2. Individual Transactions
+        SELECT 
+            posting_date, 
+            voucher_type, 
+            voucher_no, 
+            debit, 
+            credit, 
+            balance, 
+            sort_order 
+        FROM CalculatedLedger
+        
+        UNION ALL
+        
+        -- 3. Total Debit/Credit Row
+        SELECT 
+            NULL AS posting_date, 
+            'Total' AS voucher_type, 
+            NULL AS voucher_no, 
+            SUM(debit) AS debit, 
+            SUM(credit) AS credit, 
+            NULL AS balance, 
+            3 AS sort_order 
+        FROM RawData
+        
+        UNION ALL
+        
+        -- 4. Closing Balance Row
+        SELECT 
+            NULL AS posting_date, 
+            'Closing (Total)' AS voucher_type, 
+            NULL AS voucher_no, 
+            NULL AS debit, 
+            NULL AS credit, 
+            SUM(debit - credit) AS balance, 
+            4 AS sort_order 
+        FROM RawData
+    ) AS FinalReport
+    ORDER BY sort_order, posting_date, balance;
+    """
+
+    data = frappe.db.sql(query, (customer_name,), as_dict=True)
+    
+    formatted_data = []
+    for idx, row in enumerate(data):
+        formatted_data.append({
+            "id": str(idx + 1),
+            "date": row.get("posting_date").strftime("%b %d, %Y") if row.get("posting_date") else "-",
+            "type": row.get("voucher_type"),
+            "ref": row.get("voucher_no") or "-",
+            "debit": f"{row.get('debit', 0):,.2f}" if row.get('debit') is not None else "0.00",
+            "credit": f"{row.get('credit', 0):,.2f}" if row.get('credit') is not None else "0.00",
+            "balance": f"{row.get('balance', 0):,.2f}" if row.get('balance') is not None else "-"
+        })
+    
+    return formatted_data
+
+
+
+@frappe.whitelist()
+def create_sales_order(cart=None): #create sales order from cart data
+
+    if isinstance(cart, str):
+        cart = frappe.parse_json(cart)
+
+    if not cart:
+        frappe.throw("Cart is empty")
+
+    current_user = frappe.session.user
+
+    customer_name = frappe.db.get_value(
+        "Portal User",
+        {"user": current_user},
+        "parent"
+    )
+
+    if not customer_name:
+        frappe.throw("No Customer linked with this user")
+
+    today = date.today()
+
+    try:
+        items = []
+
+        for row in cart:
+            items.append({
+                "item_code": row.get("id"),
+                "qty": row.get("quantity"),
+                "delivery_date": today,
+            })
+
+        sales_order = frappe.get_doc({
+            "doctype": "Sales Order",
+            "customer": customer_name,
+            "transaction_date": today,
+            "delivery_date": today,
+            "order_type": "Sales",
+            "currency": "PKR",
+            "selling_price_list": "Standard Selling",
+            "items": items
+        })
+
+        sales_order.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        return {
+            "status": "success",
+            "sales_order": sales_order.name
+        }
+
+    except Exception:
+        frappe.log_error(frappe.get_traceback(), "Create Sales Order Error")
+        return {
+            "status": "error",
+            "message": "Failed to create Sales Order"
+        }
+
+
+@frappe.whitelist()
+def validate_customer_access(): #validate currnet logedin customer 
+
+    if frappe.session.user == "Guest":
+        return {
+            "is_customer": False,
+            "customer": None
+        }
+
+    current_user = frappe.session.user
+
+    customer_name = frappe.db.get_value(
+        "Portal User",
+        {"user": current_user},
+        "parent"
+    )
+
+    if not customer_name:
+        return {
+            "is_customer": False,
+            "customer": None
+        }
+
+    return {
+        "is_customer": True,
+        "customer": customer_name
+    }

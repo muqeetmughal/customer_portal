@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { BookOpen, Eye, Download, Search, X, Check } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { BookOpen, Download, Search, X, Check, Loader2 } from 'lucide-react';
 import FilterPanel from '../components/FilterPanel';
 import ExportSelection from '../components/ExportSelection';
 
@@ -13,21 +13,14 @@ type LedgerEntry = {
   balance: string;
 };
 
-const LEDGER_ENTRIES: LedgerEntry[] = [
-  { id: '1', date: 'Oct 01, 2024', type: 'Opening Balance', ref: '-', debit: '0.00', credit: '0.00', balance: '$2,500.00' },
-  { id: '2', date: 'Oct 05, 2024', type: 'Invoice', ref: 'INV-2024-001', debit: '1,200.00', credit: '0.00', balance: '$3,700.00' },
-  { id: '3', date: 'Oct 08, 2024', type: 'Payment', ref: 'PAY-8821', debit: '0.00', credit: '1,200.00', balance: '$2,500.00' },
-  { id: '4', date: 'Oct 12, 2024', type: 'Invoice', ref: 'INV-2024-002', debit: '3,450.00', credit: '0.00', balance: '$5,950.00' },
-  { id: '5', date: 'Oct 15, 2024', type: 'Credit Note', ref: 'CRN-002', debit: '0.00', credit: '500.00', balance: '$5,450.00' },
-  { id: '6', date: 'Oct 20, 2024', type: 'Payment', ref: 'PAY-8910', debit: '0.00', credit: '2,000.00', balance: '$3,450.00' },
-];
-
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
     'Opening Balance': 'bg-slate-100 text-slate-700', 
-    Invoice: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
-    Payment: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+    'Invoice': 'bg-indigo-50 text-indigo-600 border border-indigo-100',
+    'Payment': 'bg-emerald-50 text-emerald-600 border border-emerald-100',
     'Credit Note': 'bg-rose-50 text-rose-600 border border-rose-100',
+    'Total': 'bg-amber-50 text-amber-700 border border-amber-100 font-bold',
+    'Closing (Total)': 'bg-blue-50 text-blue-700 border border-blue-100 font-bold',
   };
   return (
     <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${styles[status] || 'bg-slate-100 text-slate-600'}`}>
@@ -37,11 +30,30 @@ const StatusBadge = ({ status }: { status: string }) => {
 };
 
 const Ledger = () => {
+  const [data, setData] = useState<LedgerEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
-  
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchLedgerData = async () => {
+      try {
+        const response = await fetch('/api/method/customer_portal.api.v1.get_customer_ledger_data');
+        const result = await response.json();
+        if (result.message) {
+          setData(result.message);
+        }
+      } catch (error) {
+        console.error("Error fetching ledger data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLedgerData();
+  }, []);
 
   const columns: { label: string; key: keyof LedgerEntry; align?: 'right' }[] = [
     { label: 'Posting Date', key: 'date' },
@@ -62,13 +74,13 @@ const Ledger = () => {
   };
 
   const filteredData = useMemo(() => {
-    return LEDGER_ENTRIES.filter((item) => {
+    return data.filter((item) => {
       return Object.entries(activeFilters).every(([key, value]) => {
         if (!value) return true;
         return String(item[key as keyof LedgerEntry] || '').toLowerCase().includes(value.toLowerCase());
       });
     });
-  }, [activeFilters]);
+  }, [data, activeFilters]);
 
   const activeFilterCount = Object.keys(activeFilters).length;
 
@@ -95,6 +107,15 @@ const Ledger = () => {
   const selectedData = useMemo(() => {
     return filteredData.filter(item => selectedIds.has(item.id));
   }, [filteredData, selectedIds]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <Loader2 className="animate-spin text-indigo-600" size={40} />
+        <p className="text-slate-500 font-medium">Loading ledger records...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -214,19 +235,20 @@ const Ledger = () => {
                   </th>
                 )}
                 {columns.map((col, i) => <th key={i} className={`px-6 py-5 ${col.align === 'right' ? 'text-right' : ''}`}>{col.label}</th>)}
-                <th className="px-6 py-5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredData.length > 0 ? filteredData.map((item, idx) => {
                 const isSelected = selectedIds.has(item.id);
+                const isSpecialRow = item.type === 'Total' || item.type === 'Closing (Total)' || item.type === 'Opening Balance';
+                
                 return (
                   <tr 
                     key={idx} 
                     onClick={() => isSelectionMode && toggleSelectItem(item.id)}
                     className={`transition-colors group ${
                       isSelectionMode ? 'cursor-pointer' : ''
-                    } ${isSelected ? 'bg-indigo-50/50' : 'hover:bg-slate-50/80'}`}
+                    } ${isSelected ? 'bg-indigo-50/50' : isSpecialRow ? 'bg-slate-50/30' : 'hover:bg-slate-50/80'}`}
                   >
                     {isSelectionMode && (
                       <td className="px-6 py-4">
@@ -240,25 +262,17 @@ const Ledger = () => {
                     {columns.map((col, i) => (
                       <td key={i} className={`px-6 py-4 ${col.align === 'right' ? 'text-right' : ''}`}>
                         {col.key === 'type' ? <StatusBadge status={item[col.key]} /> :
-                         col.key === 'balance' ? <span className="font-bold text-slate-900">{item[col.key]}</span> :
-                         col.key === 'debit' ? <span className="text-sm font-semibold text-rose-600">{item[col.key] !== '0.00' ? `+ ${item[col.key]}` : '-'}</span> :
-                         col.key === 'credit' ? <span className="text-sm font-semibold text-emerald-600">{item[col.key] !== '0.00' ? `- ${item[col.key]}` : '-'}</span> :
+                         col.key === 'balance' ? <span className={`font-bold ${isSpecialRow ? 'text-indigo-600' : 'text-slate-900'}`}>{item[col.key]}</span> :
+                         col.key === 'debit' ? <span className={`text-sm font-semibold ${item[col.key] !== '0.00' ? 'text-rose-600' : 'text-slate-300'}`}>{item[col.key] !== '0.00' ? `+ ${item[col.key]}` : '-'}</span> :
+                         col.key === 'credit' ? <span className={`text-sm font-semibold ${item[col.key] !== '0.00' ? 'text-emerald-600' : 'text-slate-300'}`}>{item[col.key] !== '0.00' ? `- ${item[col.key]}` : '-'}</span> :
                          <span className={`text-sm ${isSelected ? 'text-indigo-900 font-medium' : 'text-slate-600'}`}>{item[col.key]}</span>}
                       </td>
                     ))}
-                    <td className="px-6 py-4 text-right">
-                      {!isSelectionMode && (
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><Eye size={18}/></button>
-                          <button className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><Download size={18}/></button>
-                        </div>
-                      )}
-                    </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                  <td colSpan={columns.length + (isSelectionMode ? 2 : 1)} className="px-6 py-20 text-center">
+                  <td colSpan={columns.length + (isSelectionMode ? 1 : 0)} className="px-6 py-20 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-4 bg-slate-50 rounded-full"><Search className="h-8 w-8 text-slate-300" /></div>
                       <p className="text-slate-900 font-bold">No matching records</p>

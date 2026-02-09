@@ -17,33 +17,21 @@ import {
   Legend
 } from 'recharts';
 
-const INVOICE_STATUS_DATA = [
-  { name: 'Paid', value: 400, color: '#10b981' },
-  { name: 'Pending', value: 300, color: '#f59e0b' },
-  { name: 'Overdue', value: 100, color: '#ef4444' },
-];
-
-const PURCHASE_HISTORY_DATA = [
-  { name: 'Electronics', value: 4500 },
-  { name: 'Office Supplies', value: 1200 },
-  { name: 'Services', value: 3000 },
-  { name: 'Hardware', value: 2100 },
-];
-
 const Analytics = () => {
 
-  // ✅ Fetch dynamic sales velocity data
   const salesVelocityQuery = useFrappeGetCall(
     "customer_portal.api.v1.get_sales_velocity_monthly"
   );
 
-  // ✅ Fetch dynamic top items data
   const topItemsQuery = useFrappeGetCall(
     "customer_portal.api.v1.get_top_selling_items"
   );
 
-  // ✅ Loading State
-  if (salesVelocityQuery.isLoading || topItemsQuery.isLoading) {
+  const invoiceStatusQuery = useFrappeGetCall(
+    "customer_portal.api.v1.get_sales_invoice_status_count"
+  );
+
+  if (salesVelocityQuery.isLoading || topItemsQuery.isLoading || invoiceStatusQuery.isLoading) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-500">
         Loading analytics...
@@ -51,7 +39,7 @@ const Analytics = () => {
     );
   }
 
-  // ✅ Transform API Data for Sales Velocity Chart
+  
   const salesChartData =
     salesVelocityQuery.data?.message?.labels?.map(
       (label: string, index: number) => ({
@@ -61,12 +49,25 @@ const Analytics = () => {
       })
     ) || [];
 
-  // ✅ Transform Top Items Data for BarChart
+  
   const topItemsChartData =
     topItemsQuery.data?.message?.map((item: any) => ({
-      name: item.name.split(' ')[0], // keep first word for label
+      name: item.name.split(' ')[0], 
       sales: item.sales_count
     })) || [];
+
+  const invoiceStatusData = [
+    { name: 'Paid', value: invoiceStatusQuery.data?.message?.Paid || 0, color: '#10b981' },
+    { name: 'Draft', value: invoiceStatusQuery.data?.message?.Draft || 0, color: '#f59e0b' },
+    { name: 'Overdue', value: invoiceStatusQuery.data?.message?.Overdue || 0, color: '#ef4444' },
+  ];
+
+  const PURCHASE_HISTORY_DATA = [
+    { name: 'Electronics', value: 4500 },
+    { name: 'Office Supplies', value: 1200 },
+    { name: 'Services', value: 3000 },
+    { name: 'Hardware', value: 2100 },
+  ];
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -112,8 +113,8 @@ const Analytics = () => {
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={INVOICE_STATUS_DATA} innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
-                {INVOICE_STATUS_DATA.map((entry, index) => (
+              <Pie data={invoiceStatusData} innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
+                {invoiceStatusData.map((entry, index) => (
                   <Cell key={index} fill={entry.color} />
                 ))}
               </Pie>

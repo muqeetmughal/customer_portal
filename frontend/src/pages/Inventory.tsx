@@ -1,24 +1,43 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Filter, ShoppingCart, Search, X } from 'lucide-react';
 import { useFrappeGetCall } from "frappe-react-sdk";
 import FilterPanel from '../components/FilterPanel';
 
-interface InventoryProps {
-  addToCart: (product: any) => void;
-}
-
-const Inventory = ({ addToCart }: InventoryProps) => {
-
+const Inventory = () => {
   const { data, error, isLoading } = useFrappeGetCall(
     "customer_portal.api.v1.get_product_catalog"
   );
 
-  const INVENTORY_ITEMS = Array.isArray(data?.message)
-    ? data.message
-    : [];
+  const INVENTORY_ITEMS = Array.isArray(data?.message) ? data.message : [];
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  
+  // --- Local Storage addToCart functionality ---
+  const [cart, setCart] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const savedCart = localStorage.getItem('customer_portal_cart');
+      return savedCart ? JSON.parse(savedCart) : [];
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedCart = localStorage.getItem('customer_portal_cart');
+      if (savedCart) {
+        setCart(JSON.parse(savedCart));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('cart-updated', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cart-updated', handleStorageChange);
+    };
+  }, []);
 
   const columns = [
     { label: 'Product Name', key: 'name' },
@@ -48,6 +67,25 @@ const Inventory = ({ addToCart }: InventoryProps) => {
 
   const activeFilterCount = Object.keys(activeFilters).length;
 
+  // --- Cart Actions ---
+  const addToCart = (product: any) => {
+    const savedCart = localStorage.getItem('customer_portal_cart');
+    let currentCart = savedCart ? JSON.parse(savedCart) : [];
+    
+    const existing = currentCart.find((item: any) => item.id === product.id);
+    if (existing) {
+      currentCart = currentCart.map((item: any) =>
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      );
+    } else {
+      currentCart = [...currentCart, { ...product, quantity: 1 }];
+    }
+    
+    localStorage.setItem('customer_portal_cart', JSON.stringify(currentCart));
+    setCart(currentCart);
+    window.dispatchEvent(new Event('cart-updated'));
+  };
+
   if (isLoading) {
     return <div className="p-10 text-center">Loading products...</div>;
   }
@@ -57,14 +95,14 @@ const Inventory = ({ addToCart }: InventoryProps) => {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500 relative">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Product Catalog</h2>
           <p className="text-sm text-slate-500">Browse and order items directly</p>
         </div>
         <div className="flex gap-3 relative">
-          <button 
+          <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
             className="p-3 bg-white border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 relative"
           >
@@ -92,6 +130,7 @@ const Inventory = ({ addToCart }: InventoryProps) => {
         </div>
       </div>
 
+      {/* Active Filters */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
@@ -99,9 +138,7 @@ const Inventory = ({ addToCart }: InventoryProps) => {
           </span>
           {Object.entries(activeFilters).map(([key, value]) => (
             <div key={key} className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 text-xs font-medium">
-              <span className="opacity-60">
-                {columns.find(c => c.key === key)?.label}:
-              </span>
+              <span className="opacity-60">{columns.find(c => c.key === key)?.label}:</span>
               <span>{value}</span>
               <button onClick={() => handleFilterChange(key, '')} className="hover:text-indigo-900">
                 <X size={12} />
@@ -111,6 +148,7 @@ const Inventory = ({ addToCart }: InventoryProps) => {
         </div>
       )}
 
+      {/* Product Grid */}
       {filteredData.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredData.map((item: any) => (
@@ -118,7 +156,7 @@ const Inventory = ({ addToCart }: InventoryProps) => {
               <div className="flex justify-between items-start mb-6">
                 <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
                   {item.image
-                    ? <img src={item.image} className="w-full h-full object-cover rounded-2xl"/>
+                    ? <img src={item.image} className="w-full h-full object-cover rounded-2xl" alt={item.name}/>
                     : "📦"}
                 </div>
                 <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-wider">

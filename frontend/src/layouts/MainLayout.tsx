@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   LayoutDashboard,
   BarChart3,
@@ -8,100 +8,138 @@ import {
   Truck,
   Bell,
   Search,
-  User,
-  MoreVertical,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
-  DollarSign,
-  CreditCard,
-  Wallet,
-  Flame,
-  ChevronRight,
-  Download,
-  Filter,
-  Eye,
   BookOpen,
-  Calendar,
-  ArrowRightLeft,
   Package,
   ShoppingCart,
-  Plus,
-  Minus,
-  Trash2,
-  CheckCircle2
+  X,
+  Trash2
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
-} from 'recharts';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useFrappeAuth, useFrappeGetCall } from 'frappe-react-sdk';
-import LoadingScreen from '../components/LoadingScreen';
 
 const MainLayout = () => {
   const location = useLocation();
   const {
     currentUser,
-    isValidating,
     isLoading,
-    login,
     logout,
-    error,
-    updateCurrentUser,
-    getUserCookie,
   } = useFrappeAuth();
 
-  const is_customer_query = useFrappeGetCall("customer_portal.api.v1.is_customer");
+  const { data } = useFrappeGetCall(
+    "customer_portal.api.v1.validate_customer_access"
+  );
 
+  // --- Cart State and Logic ---
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [cart, setCart] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const savedCart = localStorage.getItem('customer_portal_cart');
+      return savedCart ? JSON.parse(savedCart) : [];
+    }
+    return [];
+  });
 
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedCart = localStorage.getItem('customer_portal_cart');
+      if (savedCart) {
+        setCart(JSON.parse(savedCart));
+      } else {
+        setCart([]);
+      }
+    };
 
-  // if (isLoading || isValidating || is_customer_query.isLoading) {
-  //   return <LoadingScreen />
-  // }
-  // if (!currentUser ) {
-  //   return (
-  //     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
-  //       <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
-  //         <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
-  //         <p className="text-slate-600 mb-6">You must be logged.</p>
-  //         <button
-  //           className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
-  //         >
-  //           Login
-  //         </button>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('cart-updated', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cart-updated', handleStorageChange);
+    };
+  }, []);
 
-  // if ( !is_customer_query.data?.message?.is_customer) {
-  //   return (
-  //     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
-  //       <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
-  //         <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
-  //         <p className="text-slate-600 mb-6">You must be logged in as a customer to access the Customer Portal.</p>
-  //         <button
-  //           // onClick={() => login()}
-  //           className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
-  //         >
-  //           Login
-  //         </button>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+  const removeFromCart = (id: string) => {
+    const newCart = cart.filter(item => item.id !== id);
+    setCart(newCart);
+    localStorage.setItem('customer_portal_cart', JSON.stringify(newCart));
+  };
+
+  const updateQuantity = (id: string, delta: number) => {
+    const newCart = cart.map(item => {
+      if (item.id === id) {
+        const newQty = Math.max(1, item.quantity + delta);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    });
+    setCart(newCart);
+    localStorage.setItem('customer_portal_cart', JSON.stringify(newCart));
+  };
+
+  const cartTotal = cart.reduce((acc, item) => acc + (Number(item.price || 0) * item.quantity), 0);
+
+  const handlePlaceOrder = async () => {
+    try {
+      const res = await fetch(
+        '/api/method/customer_portal.api.v1.create_sales_order',
+        {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            cart: cart
+          })
+        }
+      );
+
+      const payload = await res.json();
+      const message = payload?.message || payload;
+
+      if (message?.status === 'success') {
+        alert(`Sales Order ${message.sales_order} Created Successfully!`);
+        setCart([]);
+        localStorage.setItem('customer_portal_cart', JSON.stringify([]));
+        setIsCartOpen(false);
+      } else {
+        throw new Error(message?.message || 'Unknown error');
+      }
+
+    } catch (err: any) {
+      alert('Failed to create sales order: ' + (err.message || err));
+    }
+  };
+
+  const is_not_customer = !data?.message?.is_customer;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        Checking access...
+      </div>
+    );
+  }
+
+  if (is_not_customer) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
+        <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-200 text-center">
+          <h2 className="text-2xl font-bold mb-4 text-slate-900">Access Denied</h2>
+          <p className="text-slate-600 mb-6">
+            You must be logged in as a customer to access the Customer Portal.
+          </p>
+          <button
+            onClick={() => window.location.href = "/customer-portal/login"}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
+          >
+            Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f8fafc] flex font-sans text-slate-900">
       {/* Sidebar */}
@@ -130,19 +168,28 @@ const MainLayout = () => {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
               <input type="text" placeholder="Global search documents..." className="bg-slate-100 border-none rounded-2xl pl-12 pr-6 py-3 w-80 text-sm focus:ring-2 focus:ring-indigo-500/10 transition-all" />
             </div>
-            {/* {cart.length > 0 && (
+          </div>
+          <div className="flex items-center gap-8">
+            {/* Cart Button */}
+            {cart.length > 0 && (
               <button
-                onClick={() => setActiveTab('inventory')}
-                className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl text-xs font-bold border border-indigo-100 animate-pulse"
+                onClick={() => setIsCartOpen(true)}
+                className="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-4 py-2 rounded-xl text-xs font-bold border border-indigo-100 animate-pulse hover:bg-indigo-100 transition-colors"
               >
                 <ShoppingCart size={14} /> {cart.length} items in cart
               </button>
-            )} */}
-          </div>
-          <div className="flex items-center gap-8">
-            <button className="p-3 text-slate-400 hover:text-indigo-600 transition-colors bg-white border border-slate-200 rounded-xl relative"><Bell size={20} /><span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span></button>
+            )}
+            
+            <button className="p-3 text-slate-400 hover:text-indigo-600 transition-colors bg-white border border-slate-200 rounded-xl relative">
+              <Bell size={20} />
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
+            </button>
+            
             <div className="flex items-center gap-4 border-l border-slate-200 pl-8">
-              <div className="text-right hidden sm:block"><p className="text-sm font-bold text-slate-900 leading-tight">{currentUser}</p><p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">Premium Customer</p></div>
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-slate-900 leading-tight">{currentUser}</p>
+                <p className="text-[11px] text-slate-500 font-bold uppercase tracking-tighter">Premium Customer</p>
+              </div>
               <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black border-2 border-white shadow-inner">AJ</div>
               <button
                 onClick={() => logout()}
@@ -156,8 +203,85 @@ const MainLayout = () => {
 
         <div className="p-10"> <Outlet /></div>
       </main>
-    </div>
-  )
-}
 
-export default MainLayout
+      {isCartOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-end">
+          <div 
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setIsCartOpen(false)}
+          />
+          <div className="relative w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900">Your Cart</h3>
+                <p className="text-xs text-slate-500">Review items and create Sales Order</p>
+              </div>
+              <button 
+                onClick={() => setIsCartOpen(false)}
+                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {cart.map((item) => (
+                <div key={item.id} className="flex gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group">
+                  <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-2xl border border-slate-100">
+                    {item.image ? <img src={item.image} className="w-full h-full object-cover rounded-xl" alt={item.name}/> : "📦"}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <h4 className="text-sm font-bold text-slate-900">{item.name}</h4>
+                      <button 
+                        onClick={() => removeFromCart(item.id)}
+                        className="text-slate-300 hover:text-rose-500 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 mb-2">ID: {item.id}</p>
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1">
+                        <button 
+                          onClick={() => updateQuantity(item.id, -1)}
+                          className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 rounded text-slate-500"
+                        >-</button>
+                        <span className="text-xs font-bold w-6 text-center">{item.quantity}</span>
+                        <button 
+                          onClick={() => updateQuantity(item.id, 1)}
+                          className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 rounded text-slate-500"
+                        >+</button>
+                      </div>
+                      <p className="text-sm font-black text-slate-900">
+                        ${(Number(item.price || 0) * item.quantity).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="p-6 bg-slate-50 border-t border-slate-100 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-slate-500">Total Amount</span>
+                <span className="text-2xl font-black text-slate-900">${cartTotal.toFixed(2)}</span>
+              </div>
+              <button
+                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                onClick={handlePlaceOrder}
+              >
+                Place Order
+              </button>
+              <p className="text-[10px] text-center text-slate-400">
+                By placing the order, you agree to our terms and conditions.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default MainLayout;

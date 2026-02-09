@@ -21,7 +21,6 @@ const LoadingScreen = () => {
                     </span>
                 </div>
 
-                {/* Optional: Pulse circle */}
                 <div className="mt-8">
                     <div className="w-3 h-3 bg-indigo-400 rounded-full mx-auto animate-ping"></div>
                 </div>

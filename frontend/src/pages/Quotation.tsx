@@ -7,7 +7,6 @@ import ViewRecords from '../components/ViewRecords';
 import FilterPanel from '../components/FilterPanel';
 import ExportSelection from '../components/ExportSelection';
 
-/* ---------------- Status Badge ---------------- */
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
     Paid: 'bg-emerald-100 text-emerald-700',
@@ -36,7 +35,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-/* ---------------- Types ---------------- */
 interface Column {
   label: string;
   key: string;
@@ -66,7 +64,6 @@ const DocumentListView = ({
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Ref for the toolbar container to handle click-outside for the filter panel
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
