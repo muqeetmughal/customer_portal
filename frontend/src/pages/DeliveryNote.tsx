@@ -44,6 +44,7 @@ interface DocumentListViewProps {
   icon: React.ElementType;
   onView: (item: any) => void;
   onDownload: (item: any) => void;
+  rawData?: any[];
 }
 
 const DocumentListView = ({
@@ -53,6 +54,7 @@ const DocumentListView = ({
   icon: Icon,
   onView,
   onDownload,
+  rawData,
 }: DocumentListViewProps) => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
@@ -115,7 +117,7 @@ const DocumentListView = ({
     if (selectedIds.size === filteredData.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredData.map(item => item.id)));
+      setSelectedIds(new Set(filteredData.map(item => item.id || item.name)));
     }
   };
 
@@ -127,8 +129,9 @@ const DocumentListView = ({
   };
 
   const selectedData = useMemo(() => {
-    return filteredData.filter(item => selectedIds.has(item.id));
-  }, [filteredData, selectedIds]);
+    const sourceData = rawData || filteredData;
+    return sourceData.filter(item => selectedIds.has(item.id || item.name));
+  }, [rawData, filteredData, selectedIds]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -156,7 +159,6 @@ const DocumentListView = ({
               <ExportSelection 
                 title={title}
                 data={selectedData}
-                columns={columns}
                 selectedCount={selectedIds.size}
               />
             </div>
@@ -335,7 +337,7 @@ const DeliveryNotesPage = () => {
 
   const handleDownloadDeliveryNote = (dn: any) => {
     if (!dn) return;
-    const printUrl = `/app/print/Delivery Note/${dn.id}`;
+    const printUrl = `/app/print/Delivery Note/${dn.name}`;
     window.open(printUrl, '_blank');
   };
 
@@ -360,8 +362,8 @@ const DeliveryNotesPage = () => {
   }
 
   const deliveryNotes = (data?.message || []).map((dn: any) => ({
-    id: dn.delivery_note,
-    order: dn.sales_order,
+    id: dn.name,
+    order: dn.customer_name || dn.customer || '',
     date: dn.posting_date,
     tracking: `TRK-${Math.floor(Math.random() * 90000) + 10000}`,
     status: dn.status,
@@ -384,6 +386,7 @@ const DeliveryNotesPage = () => {
         icon={Truck}
         onView={handleViewDeliveryNote}
         onDownload={handleDownloadDeliveryNote}
+        rawData={data?.message || []}
       />
 
       <ViewRecords
@@ -393,10 +396,9 @@ const DeliveryNotesPage = () => {
       >
         {selectedDeliveryNote ? (
           <div className="space-y-2 text-sm">
-            <p><strong>Delivery ID:</strong> {selectedDeliveryNote.id}</p>
-            <p><strong>Order Ref:</strong> {selectedDeliveryNote.order}</p>
-            <p><strong>Dispatch Date:</strong> {selectedDeliveryNote.date}</p>
-            <p><strong>Tracking #:</strong> {selectedDeliveryNote.tracking}</p>
+            <p><strong>Delivery ID:</strong> {selectedDeliveryNote.name}</p>
+            <p><strong>Customer:</strong> {selectedDeliveryNote.customer_name || selectedDeliveryNote.customer}</p>
+            <p><strong>Dispatch Date:</strong> {selectedDeliveryNote.posting_date}</p>
             <p><strong>Status:</strong> {selectedDeliveryNote.status}</p>
           </div>
         ) : (

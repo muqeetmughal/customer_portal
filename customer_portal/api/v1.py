@@ -1,23 +1,18 @@
 import frappe
 from frappe import _
-from frappe.utils import getdate, add_months, today
+from frappe.utils import getdate, add_months, today, get_first_day, get_last_day, nowdate, flt
 from datetime import date
-
-
 
 @frappe.whitelist()
 def get_customer_dashboard_data():
-
-    current_user = frappe.session.user  # get current logged-in user
-
+    current_user = frappe.session.user
     customer_name = frappe.db.get_value(
-        "Portal User", 
-        {"user": current_user}, 
-        "parent" 
+        "Portal User",
+        {"user": current_user},
+        "parent"
     )
 
     if not customer_name:
-        # Return empty metrics if no Customer is linked to the logged-in user
         return {
             "total_sales": {"amount": 0, "change_percentage": 0, "change_text": "vs last month"},
             "outstanding": {"amount": 0, "change_percentage": 0, "change_text": "vs last month"},
@@ -26,90 +21,65 @@ def get_customer_dashboard_data():
         }
 
     customer = customer_name
+    today = getdate(nowdate())
+    current_month_start = get_first_day(today)
+    current_month_end = get_last_day(today)
+    last_month_date = add_months(today, -1)
+    last_month_start = get_first_day(last_month_date)
+    last_month_end = get_last_day(last_month_date)
 
-    # -------------------- Total Sales --------------------
-    total_sales = frappe.db.sql("""
-        SELECT
-            SUM(CASE 
-                    WHEN MONTH(posting_date) = MONTH(CURDATE())
-                     AND YEAR(posting_date) = YEAR(CURDATE())
-                    THEN grand_total ELSE 0 END) AS current_month_sales,
-            SUM(CASE
-                    WHEN MONTH(posting_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
-                     AND YEAR(posting_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)
-                    THEN grand_total ELSE 0 END) AS last_month_sales
-        FROM `tabSales Invoice`
-        WHERE docstatus = 1 AND customer = %s;
-    """, (customer,), as_dict=True)[0]
+    # Fetch all relevant Sales Invoices
+    all_sales_invoices = frappe.get_list(
+        "Sales Invoice",
+        filters={
+            "docstatus": 1,
+            "customer": customer,
+            "posting_date": ["between", [last_month_start, current_month_end]]
+        },
+        fields=["name", "posting_date", "grand_total", "outstanding_amount", "base_grand_total"],
+        as_list=False
+    )
 
-    current_month_sales = float(total_sales.current_month_sales or 0)
-    last_month_sales = float(total_sales.last_month_sales or 0)
+    current_month_sales = 0.0
+    last_month_sales = 0.0
+    current_month_outstanding = 0.0
+    last_month_outstanding = 0.0
+    current_month_received = 0.0
+    last_month_received = 0.0
+    ledger_balance_amount = 0.0
+
+    for invoice in all_sales_invoices:
+        invoice_posting_date = getdate(invoice.posting_date)
+
+        if current_month_start <= invoice_posting_date <= current_month_end:
+            current_month_sales += float(invoice.grand_total or 0)
+            current_month_outstanding += float(invoice.outstanding_amount or 0)
+            current_month_received += (float(invoice.base_grand_total or 0) - float(invoice.outstanding_amount or 0))
+        elif last_month_start <= invoice_posting_date <= last_month_end:
+            last_month_sales += float(invoice.grand_total or 0)
+            last_month_outstanding += float(invoice.outstanding_amount or 0)
+            last_month_received += (float(invoice.base_grand_total or 0) - float(invoice.outstanding_amount or 0))
+
+        ledger_balance_amount += (float(invoice.grand_total or 0) - float(invoice.outstanding_amount or 0))
+
     total_sales_change = ((current_month_sales - last_month_sales) / last_month_sales * 100) if last_month_sales else 0.0
-    total_sales_change = max(0, min(total_sales_change, 100)) 
-
-    # -------------------- Outstanding --------------------
-    outstanding = frappe.db.sql("""
-        SELECT
-            SUM(CASE 
-                    WHEN MONTH(posting_date) = MONTH(CURDATE())
-                     AND YEAR(posting_date) = YEAR(CURDATE())
-                    THEN outstanding_amount ELSE 0 END) AS current_month_outstanding,
-            SUM(CASE
-                    WHEN MONTH(posting_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
-                     AND YEAR(posting_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)
-                    THEN outstanding_amount ELSE 0 END) AS last_month_outstanding
-        FROM `tabSales Invoice`
-        WHERE docstatus = 1 AND outstanding_amount > 0 AND customer = %s;
-    """, (customer,), as_dict=True)[0]
-
-    current_month_outstanding = float(outstanding.current_month_outstanding or 0)
-    last_month_outstanding = float(outstanding.last_month_outstanding or 0)
     outstanding_change = ((current_month_outstanding - last_month_outstanding) / last_month_outstanding * 100) if last_month_outstanding else 0.0
-    outstanding_change = max(0, min(outstanding_change, 100)) 
-
-    # -------------------- Paid to Date --------------------
-    paid_to_date = frappe.db.sql("""
-        SELECT
-            SUM(CASE 
-                    WHEN MONTH(posting_date) = MONTH(CURDATE())
-                     AND YEAR(posting_date) = YEAR(CURDATE())
-                    THEN base_grand_total - outstanding_amount ELSE 0 END) AS current_month_received,
-            SUM(CASE 
-                    WHEN MONTH(posting_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
-                     AND YEAR(posting_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)
-                    THEN base_grand_total - outstanding_amount ELSE 0 END) AS last_month_received
-        FROM `tabSales Invoice`
-        WHERE docstatus = 1 AND customer = %s;
-    """, (customer,), as_dict=True)[0]
-
-    current_month_received = float(paid_to_date.current_month_received or 0)
-    last_month_received = float(paid_to_date.last_month_received or 0)
     paid_to_date_change = ((current_month_received - last_month_received) / last_month_received * 100) if last_month_received else 0.0
-    paid_to_date_change = max(0, min(paid_to_date_change, 100)) 
-
-    # -------------------- Ledger Balance --------------------
-    ledger_balance = frappe.db.sql("""
-        SELECT SUM(grand_total - outstanding_amount) AS ledger_balance
-        FROM `tabSales Invoice`
-        WHERE docstatus = 1 AND customer = %s;
-    """, (customer,), as_dict=True)[0]
-
-    ledger_balance_amount = float(ledger_balance.ledger_balance or 0)
 
     return {
         "total_sales": {
             "amount": current_month_sales,
-            "change_percentage": round(total_sales_change, 2),
+            "change_percentage": round(max(-100, min(total_sales_change, 100)), 2),
             "change_text": "vs last month"
         },
         "outstanding": {
             "amount": current_month_outstanding,
-            "change_percentage": round(outstanding_change, 2),
+            "change_percentage": round(max(-100, min(outstanding_change, 100)), 2),
             "change_text": "vs last month"
         },
         "paid_to_date": {
             "amount": current_month_received,
-            "change_percentage": round(paid_to_date_change, 2),
+            "change_percentage": round(max(-100, min(paid_to_date_change, 100)), 2),
             "change_text": "vs last month"
         },
         "ledger_balance": {
@@ -119,7 +89,7 @@ def get_customer_dashboard_data():
 
 
 
-@frappe.whitelist() #sales velocity monthly
+@frappe.whitelist() #sales velocity line chart data 
 def get_sales_velocity_monthly(from_date=None, to_date=None):
     if not to_date:
         to_date = today()
@@ -130,19 +100,21 @@ def get_sales_velocity_monthly(from_date=None, to_date=None):
     from_date = getdate(from_date)
     to_date = getdate(to_date)
 
-    data = frappe.db.sql("""
-        SELECT
-            DATE_FORMAT(posting_date, '%%b') AS month_name,
-            SUM(base_grand_total) AS total_sales,
-            COUNT(name) AS invoice_count,
-            MONTH(posting_date) AS month_number
-        FROM `tabSales Invoice`
-        WHERE
-            docstatus = 1
-            AND posting_date BETWEEN %s AND %s
-        GROUP BY month_number
-        ORDER BY month_number ASC
-    """, (from_date, to_date), as_dict=True)
+    data = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "docstatus": 1,
+            "posting_date": ["between", [from_date, to_date]]
+        },
+        fields=[
+            "DATE_FORMAT(posting_date, '%b') AS month_name",
+            "SUM(base_grand_total) AS total_sales",
+            "COUNT(name) AS invoice_count",
+            "MONTH(posting_date) AS month_number"
+        ],
+        group_by="month_number",
+        order_by="month_number ASC"
+    )
 
     return {
         "labels": [d["month_name"] for d in data],
@@ -152,16 +124,17 @@ def get_sales_velocity_monthly(from_date=None, to_date=None):
     }
 
 
+
 @frappe.whitelist()
-def get_sales_invoice_status_count(): # Collections Overview pie chart 
-    result = frappe.db.sql("""
-        SELECT 
-            status,
-            COUNT(*) AS count
-        FROM `tabSales Invoice`
-        WHERE status IN ('Draft', 'Overdue', 'Paid')
-        GROUP BY status
-    """, as_dict=True)
+def get_sales_invoice_status_count(): # sales invoice pie chart data 
+    result = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "status": ["in", ["Draft", "Overdue", "Paid"]]
+        },
+        fields=["status", "count(name) as count"],
+        group_by="status"
+    )
 
     counts = {"Draft": 0, "Overdue": 0, "Paid": 0}
     for row in result:
@@ -170,20 +143,32 @@ def get_sales_invoice_status_count(): # Collections Overview pie chart
     return counts
 
 
-@frappe.whitelist() #top selling items
+@frappe.whitelist()
 def get_top_selling_items(limit=10):
-    data = frappe.db.sql("""
-        SELECT
-            sii.item_name AS name,
-            COUNT(sii.name) AS sales_count
-        FROM `tabSales Invoice Item` AS sii
-        JOIN `tabSales Invoice` AS si ON si.name = sii.parent
-        WHERE
-            si.docstatus = 1
-        GROUP BY sii.item_name
-        ORDER BY sales_count DESC
-        LIMIT %s
-    """, (limit,), as_dict=True)
+    valid_sales_invoice_names = frappe.get_list(
+        "Sales Invoice",
+        filters={
+            "docstatus": 1
+        },
+        fields=["name"],
+        as_list=True
+    )
+
+    valid_sales_invoice_names = [name[0] for name in valid_sales_invoice_names]
+
+    data = frappe.get_all(
+        "Sales Invoice Item",
+        filters={
+            "parent": ["in", valid_sales_invoice_names]
+        },
+        fields=[
+            "item_name as name",
+            "count(name) as sales_count"
+        ],
+        group_by="item_name",
+        order_by="sales_count DESC",
+        limit_page_length=limit
+    )
 
     return data
 
@@ -224,32 +209,29 @@ def get_recent_activities(): # dashboard recent activities
 
 
 @frappe.whitelist()
-def get_sales_invoice_data(): #sales invoice data 
+def get_sales_invoice_data():  # sales invoice data with all fields
     current_user = frappe.session.user
 
     customer_name = frappe.db.get_value(
-        "Portal User", 
-        {"user": current_user}, 
-        "parent" 
+        "Portal User",
+        {"user": current_user},
+        "parent"
     )
 
     if not customer_name:
         return []
 
-    data = frappe.db.sql("""
-        SELECT
-            name,
-            posting_date,
-            due_date,
-            grand_total AS total,
-            status
-        FROM `tabSales Invoice`
-        WHERE docstatus = 1 AND customer = %s
-        ORDER BY posting_date DESC
-    """, (customer_name,), as_dict=True)
+    data = frappe.get_all(
+        "Sales Invoice",
+        filters={
+            "docstatus": 1,
+            "customer": customer_name
+        },
+        fields=["*"],
+        order_by="posting_date desc"
+    )
 
     return data
-
 
 
 @frappe.whitelist()
@@ -265,23 +247,48 @@ def get_sales_order_data(): #sales order data
     if not customer_name:
         return []
 
-    data = frappe.db.sql("""
-        SELECT
-            name,
-            transaction_date,
-            grand_total,
-            status
-        FROM `tabSales Order`
-        WHERE customer = %s
-        ORDER BY transaction_date DESC
-    """, (customer_name,), as_dict=True)
+
+    data = frappe.db.get_all(
+        "Sales Order",
+        filters={"customer": customer_name},
+        fields=["*"],
+        order_by="creation desc"
+    )
 
     return data
 
 
-@frappe.whitelist()
-def get_quotation_data(): #quotation data 
 
+
+@frappe.whitelist()
+def get_quotation_data(): #quotation data with all fields
+
+    if frappe.session.user == "Guest":
+        return []
+
+    customer_name = frappe.db.get_value(
+        "Portal User",
+        {"user": frappe.session.user},
+        "parent"
+    )
+
+    if not customer_name:
+        return []
+
+    return frappe.get_all(
+        "Quotation",
+        filters={
+            "docstatus": 1,
+            "party_name": customer_name
+        },
+        fields=["*"],
+        order_by="creation asc"
+    )
+
+
+
+@frappe.whitelist()
+def get_delivery_note_data():  # delivery note data with all fields
     current_user = frappe.session.user
     customer_name = frappe.db.get_value(
         "Portal User",
@@ -292,84 +299,80 @@ def get_quotation_data(): #quotation data
     if not customer_name:
         return []
 
-    quotations = frappe.db.sql("""
-        SELECT
-            name,
-            creation AS created_on,
-            valid_till,
-            grand_total,
-            status
-        FROM `tabQuotation`
-        WHERE docstatus = 1 AND party_name = %s
-        ORDER BY creation DESC
-    """, (customer_name,), as_dict=True)
-
-    return quotations
-
-
-
-@frappe.whitelist()
-def get_delivery_note_data(): #deliveru note data 
-    current_user = frappe.session.user
-    customer_name = frappe.db.get_value(
-        "Portal User",
-        {"user": current_user},
-        "parent"
+    data = frappe.get_all(
+        "Delivery Note",
+        filters={
+            "docstatus": 1,
+            "customer": customer_name
+        },
+        fields=["*"],
+        order_by="posting_date DESC"
     )
 
-    if not customer_name:
-        return []
-
-    delivery_notes = frappe.db.sql("""
-        SELECT
-            dn.name AS delivery_note,
-            dni.against_sales_order AS sales_order,
-            dn.posting_date,
-            dn.status
-        FROM `tabDelivery Note` dn
-        JOIN `tabDelivery Note Item` dni
-            ON dn.name = dni.parent
-        WHERE dn.docstatus = 1 AND dn.customer = %s
-        ORDER BY dn.posting_date DESC
-    """, (customer_name,), as_dict=True)
-
-    return delivery_notes
+    return data
 
 
 @frappe.whitelist()
-def get_product_catalog(): #items data for inventory page
-    data = frappe.db.sql("""
-        SELECT
-            i.name AS id,
-            i.item_name AS name,
-            IFNULL(ip.price_list_rate, 0) AS price,
-            IFNULL(SUM(b.actual_qty), 0) AS stock,
-            i.item_group AS category,
-            MAX(f.file_url) AS image
+def get_product_catalog():
+    items = frappe.get_all(
+        "Item",
+        filters={
+            "disabled": 0,
+            "is_stock_item": 1
+        },
+        fields=["name", "item_name", "item_group"],
+        order_by="item_name ASC",
+        as_list=False
+    )
 
-        FROM `tabItem` i
+    product_catalog = []
 
-        LEFT JOIN `tabItem Price` ip
-            ON ip.item_code = i.name
-            AND ip.selling = 1
-            AND ip.price_list = 'Standard Selling'
+    for item in items:
+        item_price = frappe.get_value(
+            "Item Price",
+            filters={
+                "item_code": item.name,
+                "selling": 1,
+                "price_list": "Standard Selling"
+            },
+            fieldname="price_list_rate"
+        )
+        price = item_price if item_price is not None else 0
 
-        LEFT JOIN `tabBin` b
-            ON b.item_code = i.name
+        bins = frappe.get_all(
+            "Bin",
+            filters={
+                "item_code": item.name
+            },
+            fields=["actual_qty"],
+            as_list=False
+        )
+        stock = sum([b.actual_qty for b in bins]) if bins else 0
 
-        LEFT JOIN `tabFile` f
-            ON f.attached_to_doctype = 'Item'
-            AND f.attached_to_name = i.name
-            AND f.is_private = 0
+        file_data = frappe.get_all(
+            "File",
+            filters={
+                "attached_to_doctype": "Item",
+                "attached_to_name": item.name,
+                "is_private": 0
+            },
+            fields=["file_url"],
+            order_by="creation DESC", 
+            limit_page_length=1,
+            as_list=False
+        )
+        image = file_data[0].file_url if file_data else None
 
-        WHERE i.disabled = 0
-          AND i.is_stock_item = 1
+        product_catalog.append({
+            "id": item.name,
+            "name": item.item_name,
+            "price": price,
+            "stock": stock,
+            "category": item.item_group,
+            "image": image
+        })
 
-        GROUP BY i.name
-        ORDER BY i.item_name ASC
-    """, as_dict=True)
-
-    return data
+    return product_catalog
 
 
 
@@ -420,7 +423,6 @@ def get_customer_ledger_data(): #customer ledger data
     )
     -- Combine everything into the final report
     SELECT * FROM (
-        -- 1. Opening Balance Row (Always 0 for full history, or calculated if date filtered)
         SELECT 
             NULL AS posting_date, 
             'Opening Balance' AS voucher_type, 
@@ -432,7 +434,7 @@ def get_customer_ledger_data(): #customer ledger data
         
         UNION ALL
         
-        -- 2. Individual Transactions
+        -- Individual Transactions
         SELECT 
             posting_date, 
             voucher_type, 
@@ -445,7 +447,7 @@ def get_customer_ledger_data(): #customer ledger data
         
         UNION ALL
         
-        -- 3. Total Debit/Credit Row
+        -- Total Debit/Credit Row
         SELECT 
             NULL AS posting_date, 
             'Total' AS voucher_type, 
@@ -458,7 +460,7 @@ def get_customer_ledger_data(): #customer ledger data
         
         UNION ALL
         
-        -- 4. Closing Balance Row
+        -- Closing Balance Row
         SELECT 
             NULL AS posting_date, 
             'Closing (Total)' AS voucher_type, 
@@ -491,13 +493,15 @@ def get_customer_ledger_data(): #customer ledger data
 
 
 @frappe.whitelist()
-def create_sales_order(cart=None): #create sales order from cart data
-
+def create_sales_order(cart=None, delivery_date=None):
     if isinstance(cart, str):
         cart = frappe.parse_json(cart)
 
     if not cart:
         frappe.throw("Cart is empty")
+    
+    if not delivery_date:
+        frappe.throw("Delivery date is required")
 
     current_user = frappe.session.user
 
@@ -510,6 +514,15 @@ def create_sales_order(cart=None): #create sales order from cart data
     if not customer_name:
         frappe.throw("No Customer linked with this user")
 
+    default_currency = frappe.db.get_value(
+        "Customer",
+        customer_name,
+        "default_currency"
+    )
+
+    if not default_currency:
+        frappe.throw(f"Default currency not set for Customer {customer_name}")
+
     today = date.today()
 
     try:
@@ -519,16 +532,16 @@ def create_sales_order(cart=None): #create sales order from cart data
             items.append({
                 "item_code": row.get("id"),
                 "qty": row.get("quantity"),
-                "delivery_date": today,
+                "delivery_date": delivery_date, 
             })
 
         sales_order = frappe.get_doc({
             "doctype": "Sales Order",
             "customer": customer_name,
             "transaction_date": today,
-            "delivery_date": today,
+            "delivery_date": delivery_date,
             "order_type": "Sales",
-            "currency": "PKR",
+            "currency": default_currency,
             "selling_price_list": "Standard Selling",
             "items": items
         })
@@ -576,3 +589,65 @@ def validate_customer_access(): #validate currnet logedin customer
         "is_customer": True,
         "customer": customer_name
     }
+
+
+
+@frappe.whitelist()
+def get_hot_items():
+    # current month sales
+    curr_sales = frappe.db.sql("""
+        SELECT
+            sii.item_code,
+            SUM(sii.qty) AS sales_count,
+            SUM(sii.qty * sii.rate) AS revenue
+        FROM `tabSales Invoice Item` sii
+        JOIN `tabSales Invoice` si ON sii.parent = si.name
+        WHERE si.docstatus = 1
+          AND MONTH(si.posting_date) = MONTH(CURDATE())
+          AND YEAR(si.posting_date) = YEAR(CURDATE())
+        GROUP BY sii.item_code
+    """, as_dict=1)
+
+    #  previous month sales
+    prev_sales = frappe.db.sql("""
+        SELECT
+            sii.item_code,
+            SUM(sii.qty) AS sales_count,
+            SUM(sii.qty * sii.rate) AS revenue
+        FROM `tabSales Invoice Item` sii
+        JOIN `tabSales Invoice` si ON sii.parent = si.name
+        WHERE si.docstatus = 1
+          AND MONTH(si.posting_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)
+          AND YEAR(si.posting_date) = YEAR(CURDATE() - INTERVAL 1 MONTH)
+        GROUP BY sii.item_code
+    """, as_dict=1)
+
+    prev_dict = {item['item_code']: item for item in prev_sales}
+
+    result = []
+    for item in curr_sales:
+        prev = prev_dict.get(item['item_code'], {'sales_count': 0, 'revenue': 0})
+
+        sales_count = flt(item['sales_count'])
+        prev_sales_count = flt(prev['sales_count'])
+
+        revenue = flt(item['revenue'])
+        prev_revenue = flt(prev['revenue'])
+
+        if prev_sales_count > 0:
+            growth = round((sales_count - prev_sales_count) / prev_sales_count * 100)
+        else:
+            growth = 100  
+
+        growth = max(1, min(growth, 100))
+
+        result.append({
+            "name": frappe.get_value("Item", item['item_code'], "item_name"),
+            "sales": int(sales_count),
+            "revenue": f"${revenue:,.0f}",
+            "growth": f"+{growth}%" if sales_count >= prev_sales_count else f"-{growth}%"
+        })
+
+    # Sort by top 10 hot items
+    result.sort(key=lambda x: x['sales'], reverse=True)
+    return result[:10]

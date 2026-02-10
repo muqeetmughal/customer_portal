@@ -48,6 +48,7 @@ interface DocumentListViewProps {
   icon: React.ElementType;
   onView: (item: any) => void;
   onDownload: (item: any) => void;
+  rawData?: any[];
 }
 
 const DocumentListView = ({
@@ -57,6 +58,7 @@ const DocumentListView = ({
   icon: Icon,
   onView,
   onDownload,
+  rawData,
 }: DocumentListViewProps) => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
@@ -119,7 +121,7 @@ const DocumentListView = ({
     if (selectedIds.size === filteredData.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredData.map(item => item.id)));
+      setSelectedIds(new Set(filteredData.map(item => item.id || item.name)));
     }
   };
 
@@ -131,8 +133,9 @@ const DocumentListView = ({
   };
 
   const selectedData = useMemo(() => {
-    return filteredData.filter(item => selectedIds.has(item.id));
-  }, [filteredData, selectedIds]);
+    const sourceData = rawData || filteredData;
+    return sourceData.filter(item => selectedIds.has(item.id || item.name));
+  }, [rawData, filteredData, selectedIds]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -162,7 +165,6 @@ const DocumentListView = ({
               <ExportSelection 
                 title={title}
                 data={selectedData}
-                columns={columns}
                 selectedCount={selectedIds.size}
               />
             </div>
@@ -350,7 +352,7 @@ const QuotationsPage = () => {
 
   const handleDownloadQuotation = (quotation: any) => {
     if (!quotation) return;
-    const printUrl = `/app/print/Quotation/${quotation.id}`;
+    const printUrl = `/app/print/Quotation/${quotation.name}`;
     window.open(printUrl, '_blank');
   };
 
@@ -382,7 +384,7 @@ const QuotationsPage = () => {
 
   const formattedQuotations = quotations.map((q: any) => ({
     id: q.name,
-    created: q.created_on,
+    created: q.creation,
     valid: q.valid_till,
     total: `$${Number(q.grand_total).toLocaleString()}`,
     status: q.status,
@@ -405,6 +407,7 @@ const QuotationsPage = () => {
         icon={Quote}
         onView={handleViewQuotation}
         onDownload={handleDownloadQuotation}
+        rawData={quotations}
       />
 
       <ViewRecords
@@ -414,10 +417,10 @@ const QuotationsPage = () => {
       >
         {selectedQuotation ? (
           <div className="space-y-2 text-sm">
-            <p><strong>Quote ID:</strong> {selectedQuotation.id}</p>
-            <p><strong>Created On:</strong> {selectedQuotation.created}</p>
-            <p><strong>Valid Till:</strong> {selectedQuotation.valid}</p>
-            <p><strong>Total:</strong> {selectedQuotation.total}</p>
+            <p><strong>Quote ID:</strong> {selectedQuotation.name}</p>
+            <p><strong>Created On:</strong> {selectedQuotation.creation}</p>
+            <p><strong>Valid Till:</strong> {selectedQuotation.valid_till}</p>
+            <p><strong>Total:</strong> {selectedQuotation.grand_total}</p>
             <p><strong>Status:</strong> {selectedQuotation.status}</p>
           </div>
         ) : (

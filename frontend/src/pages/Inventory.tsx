@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Filter, ShoppingCart, Search, X } from 'lucide-react';
+import { Plus, Filter, ShoppingCart, Search, X, Minus } from 'lucide-react';
 import { useFrappeGetCall } from "frappe-react-sdk";
 import FilterPanel from '../components/FilterPanel';
 
@@ -86,6 +86,44 @@ const Inventory = () => {
     window.dispatchEvent(new Event('cart-updated'));
   };
 
+  // --- Increment Quantity ---
+  const incrementQuantity = (productId: string) => {
+    const savedCart = localStorage.getItem('customer_portal_cart');
+    let currentCart = savedCart ? JSON.parse(savedCart) : [];
+    
+    currentCart = currentCart.map((item: any) =>
+      item.id === productId ? { ...item, quantity: item.quantity + 1 } : item
+    );
+    
+    localStorage.setItem('customer_portal_cart', JSON.stringify(currentCart));
+    setCart(currentCart);
+    window.dispatchEvent(new Event('cart-updated'));
+  };
+
+  // --- Decrement Quantity ---
+  const decrementQuantity = (productId: string) => {
+    const savedCart = localStorage.getItem('customer_portal_cart');
+    let currentCart = savedCart ? JSON.parse(savedCart) : [];
+    
+    // Filter out items with quantity 0, decrement others
+    currentCart = currentCart
+      .map((item: any) =>
+        item.id === productId 
+          ? { ...item, quantity: item.quantity - 1 } 
+          : item
+      )
+      .filter((item: any) => item.quantity > 0); 
+    
+    localStorage.setItem('customer_portal_cart', JSON.stringify(currentCart));
+    setCart(currentCart);
+    window.dispatchEvent(new Event('cart-updated'));
+  };
+
+  const getCartQuantity = (productId: string) => {
+    const item = cart.find((item: any) => item.id === productId);
+    return item ? item.quantity : 0;
+  };
+
   if (isLoading) {
     return <div className="p-10 text-center">Loading products...</div>;
   }
@@ -130,7 +168,6 @@ const Inventory = () => {
         </div>
       </div>
 
-      {/* Active Filters */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">
@@ -148,42 +185,69 @@ const Inventory = () => {
         </div>
       )}
 
-      {/* Product Grid */}
       {filteredData.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredData.map((item: any) => (
-            <div key={item.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group">
-              <div className="flex justify-between items-start mb-6">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
-                  {item.image
-                    ? <img src={item.image} className="w-full h-full object-cover rounded-2xl" alt={item.name}/>
-                    : "📦"}
-                </div>
-                <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                  {item.category}
-                </span>
-              </div>
+          {filteredData.map((item: any) => {
+            const cartQuantity = getCartQuantity(item.id);
+            const isInCart = cartQuantity > 0;
 
-              <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
-              <p className="text-xs text-slate-400 mb-4">Item ID: {item.id}</p>
-
-              <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">Price</p>
-                  <p className="text-xl font-black text-slate-900">
-                    ${Number(item.price || 0).toFixed(2)}
-                  </p>
+            return (
+              <div key={item.id} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/5 transition-all group">
+                <div className="flex justify-between items-start mb-6">
+                  <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-3xl group-hover:scale-110 transition-transform">
+                    {item.image
+                      ? <img src={item.image} className="w-full h-full object-cover rounded-2xl" alt={item.name}/>
+                      : "📦"}
+                  </div>
+                  <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                    {item.category}
+                  </span>
                 </div>
 
-                <button
-                  onClick={() => addToCart(item)}
-                  className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"
-                >
-                  <ShoppingCart size={20}/>
-                </button>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">{item.name}</h3>
+                <p className="text-xs text-slate-400 mb-4">Item ID: {item.id}</p>
+
+                <div className="flex items-center justify-between pt-4 border-t border-slate-50">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Price</p>
+                    <p className="text-xl font-black text-slate-900">
+                      ${Number(item.price || 0).toFixed(2)}
+                    </p>
+                  </div>
+
+                  {/* Cart Button or Quantity Controls */}
+                  {!isInCart ? (
+                    <button
+                      onClick={() => addToCart(item)}
+                      className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl hover:bg-indigo-600 hover:text-white transition-all"
+                    >
+                      <ShoppingCart size={20}/>
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-2 bg-indigo-50 rounded-2xl p-1">
+                      <button
+                        onClick={() => decrementQuantity(item.id)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                        aria-label="Decrease quantity"
+                      >
+                        <Minus size={18}/>
+                      </button>
+                      <span className="w-8 text-center font-bold text-indigo-600">
+                        {cartQuantity}
+                      </span>
+                      <button
+                        onClick={() => incrementQuantity(item.id)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-all"
+                        aria-label="Increase quantity"
+                      >
+                        <Plus size={18}/>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="bg-white rounded-3xl border border-slate-100 p-20 text-center">

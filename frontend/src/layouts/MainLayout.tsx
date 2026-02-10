@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   BarChart3,
@@ -12,13 +12,15 @@ import {
   Package,
   ShoppingCart,
   X,
-  Trash2
+  Trash2,
+  Calendar
 } from 'lucide-react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { useFrappeAuth, useFrappeGetCall } from 'frappe-react-sdk';
 
 const MainLayout = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     currentUser,
     isLoading,
@@ -29,8 +31,23 @@ const MainLayout = () => {
     "customer_portal.api.v1.validate_customer_access"
   );
 
-  // --- Cart State and Logic ---
+  const [notifications, setNotifications] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('portal_notifications');
+      return saved ? JSON.parse(saved) : [];
+    }
+    return [];
+  });
+  const [showNotifications, setShowNotifications] = useState(false);
+  const unreadCount = notifications.filter(n => !n.read).length;
+  
+  const notificationRef = useRef<HTMLDivElement>(null);
+
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [deliveryDate, setDeliveryDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // Default to today
+  });
   const [cart, setCart] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       const savedCart = localStorage.getItem('customer_portal_cart');
@@ -49,14 +66,78 @@ const MainLayout = () => {
       }
     };
 
+    const handleNewNotification = (event: any) => {
+      const newNotif = {
+        id: Date.now(),
+        title: event.detail.title,
+        message: event.detail.message,
+        time: new Date().toLocaleTimeString(),
+        read: false,
+        type: event.detail.type || 'info'
+      };
+      setNotifications(prev => {
+        const updated = [newNotif, ...prev];
+        localStorage.setItem('portal_notifications', JSON.stringify(updated));
+        return updated;
+      });
+    };
+
+    // click outsde listner
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    };
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('cart-updated', handleStorageChange);
+    window.addEventListener('new-notification', handleNewNotification as EventListener);
+    document.addEventListener('mousedown', handleClickOutside);
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('cart-updated', handleStorageChange);
+      window.removeEventListener('new-notification', handleNewNotification as EventListener);
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  const markAllAsRead = () => {
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, read: true }));
+      localStorage.setItem('portal_notifications', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+    localStorage.setItem('portal_notifications', JSON.stringify([]));
+  };
+
+  const getTitleFromPath = (path: string) => {
+    const map: Record<string, string> = {
+      '/': 'Dashboard',
+      '/dashboard': 'Dashboard',
+      '/analytics': 'Analytics',
+      '/ledger': 'Ledger',
+      '/inventory': 'Inventory',
+      '/invoices': 'Invoices',
+      '/orders': 'Sales Orders',
+      '/quotes': 'Quotations',
+      '/delivery': 'Delivery Notes',
+      '/login': 'Login'
+    };
+
+    const base = map[path] || map['/'] || 'Customer Portal';
+    return base;
+  };
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.title = getTitleFromPath(location.pathname);
+    }
+  }, [location.pathname]);
 
   const removeFromCart = (id: string) => {
     const newCart = cart.filter(item => item.id !== id);
@@ -79,6 +160,11 @@ const MainLayout = () => {
   const cartTotal = cart.reduce((acc, item) => acc + (Number(item.price || 0) * item.quantity), 0);
 
   const handlePlaceOrder = async () => {
+    if (!deliveryDate) {
+      alert("Please select a delivery date.");
+      return;
+    }
+
     try {
       const res = await fetch(
         '/api/method/customer_portal.api.v1.create_sales_order',
@@ -89,7 +175,8 @@ const MainLayout = () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            cart: cart
+            cart: cart,
+            delivery_date: deliveryDate
           })
         }
       );
@@ -98,9 +185,21 @@ const MainLayout = () => {
       const message = payload?.message || payload;
 
       if (message?.status === 'success') {
-        alert(`Sales Order ${message.sales_order} Created Successfully!`);
+        const event = new CustomEvent('new-notification', {
+          detail: {
+            title: 'Order Created',
+            message: `Sales Order ${message.sales_order} has been created successfully.`,
+            type: 'success'
+          }
+        });
+        window.dispatchEvent(event);
+
         setCart([]);
+        
         localStorage.setItem('customer_portal_cart', JSON.stringify([]));
+        
+        window.dispatchEvent(new Event('cart-updated'));
+
         setIsCartOpen(false);
       } else {
         throw new Error(message?.message || 'Unknown error');
@@ -111,7 +210,11 @@ const MainLayout = () => {
     }
   };
 
-  const is_not_customer = !data?.message?.is_customer;
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   if (isLoading) {
     return (
@@ -121,6 +224,11 @@ const MainLayout = () => {
     );
   }
 
+  if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+
+  const is_not_customer = !data?.message?.is_customer;
   if (is_not_customer) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-100">
@@ -130,7 +238,7 @@ const MainLayout = () => {
             You must be logged in as a customer to access the Customer Portal.
           </p>
           <button
-            onClick={() => window.location.href = "/customer-portal/login"}
+            onClick={handleLogout}
             className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors"
           >
             Login
@@ -180,10 +288,51 @@ const MainLayout = () => {
               </button>
             )}
             
-            <button className="p-3 text-slate-400 hover:text-indigo-600 transition-colors bg-white border border-slate-200 rounded-xl relative">
-              <Bell size={20} />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
-            </button>
+            {/* Notification Bell with Click Outside logic */}
+            <div className="relative" ref={notificationRef}>
+              <button 
+                onClick={() => {
+                  if (!showNotifications) markAllAsRead();
+                  setShowNotifications(!showNotifications);
+                }}
+                className={`p-3 transition-colors bg-white border border-slate-200 rounded-xl relative ${unreadCount > 0 ? 'text-indigo-600 ring-2 ring-indigo-500/10' : 'text-slate-400 hover:text-indigo-600'}`}
+              >
+                <Bell size={20} className={unreadCount > 0 ? 'animate-bounce' : ''} />
+                {unreadCount > 0 && (
+                  <span className="absolute top-2.5 right-2.5 w-4 h-4 bg-rose-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white font-bold">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown */}
+              {showNotifications && (
+                <div className="absolute right-0 mt-4 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-50">
+                  <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
+                    <h4 className="font-bold text-sm">Notifications</h4>
+                    <button onClick={clearNotifications} className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-wider">Clear All</button>
+                  </div>
+                  <div className="max-h-96 overflow-y-auto">
+                    {notifications.length > 0 ? (
+                      notifications.map(notif => (
+                        <div key={notif.id} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                          <div className="flex justify-between items-start mb-1">
+                            <h5 className="font-bold text-xs text-slate-900">{notif.title}</h5>
+                            <span className="text-[10px] text-slate-400">{notif.time}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 leading-relaxed">{notif.message}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-10 text-center">
+                        <Bell className="mx-auto text-slate-200 mb-2" size={32} />
+                        <p className="text-xs text-slate-400">No new notifications</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             
             <div className="flex items-center gap-4 border-l border-slate-200 pl-8">
               <div className="text-right hidden sm:block">
@@ -192,7 +341,7 @@ const MainLayout = () => {
               </div>
               <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 font-black border-2 border-white shadow-inner">AJ</div>
               <button
-                onClick={() => logout()}
+                onClick={handleLogout}
                 className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-all rounded-xl border border-slate-200"
               >
                 Logout
@@ -204,6 +353,7 @@ const MainLayout = () => {
         <div className="p-10"> <Outlet /></div>
       </main>
 
+      {/* Cart Drawer */}
       {isCartOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-end">
           <div 
@@ -225,58 +375,67 @@ const MainLayout = () => {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {cart.map((item) => (
-                <div key={item.id} className="flex gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 group">
-                  <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-2xl border border-slate-100">
-                    {item.image ? <img src={item.image} className="w-full h-full object-cover rounded-xl" alt={item.name}/> : "📦"}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start">
-                      <h4 className="text-sm font-bold text-slate-900">{item.name}</h4>
-                      <button 
-                        onClick={() => removeFromCart(item.id)}
-                        className="text-slate-300 hover:text-rose-500 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+              {cart.length > 0 ? (
+                cart.map((item) => (
+                  <div key={item.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <div className="w-16 h-16 bg-white rounded-xl flex items-center justify-center text-2xl border border-slate-100 shadow-sm">
+                      {item.image ? <img src={item.image} className="w-full h-full object-cover rounded-xl" alt={item.name}/> : "📦"}
                     </div>
-                    <p className="text-[10px] text-slate-400 mb-2">ID: {item.id}</p>
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg p-1">
-                        <button 
-                          onClick={() => updateQuantity(item.id, -1)}
-                          className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 rounded text-slate-500"
-                        >-</button>
-                        <span className="text-xs font-bold w-6 text-center">{item.quantity}</span>
-                        <button 
-                          onClick={() => updateQuantity(item.id, 1)}
-                          className="w-6 h-6 flex items-center justify-center hover:bg-slate-50 rounded text-slate-500"
-                        >+</button>
+                    <div className="flex-1">
+                      <h4 className="font-bold text-slate-900 text-sm">{item.name}</h4>
+                      <p className="text-xs text-indigo-600 font-bold">${Number(item.price || 0).toFixed(2)}</p>
+                      
+                      <div className="flex items-center gap-3 mt-2">
+                        <div className="flex items-center gap-2 bg-white rounded-lg border border-slate-200 p-1">
+                          <button onClick={() => updateQuantity(item.id, -1)} className="p-1 hover:bg-slate-50 rounded text-slate-400 hover:text-indigo-600"><X size={12} /></button>
+                          <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
+                          <button onClick={() => updateQuantity(item.id, 1)} className="p-1 hover:bg-slate-50 rounded text-slate-400 hover:text-indigo-600"><X size={12} /></button>
+                        </div>
+                        <button onClick={() => removeFromCart(item.id)} className="text-rose-500 hover:text-rose-700 transition-colors"><Trash2 size={16}/></button>
                       </div>
-                      <p className="text-sm font-black text-slate-900">
-                        ${(Number(item.price || 0) * item.quantity).toFixed(2)}
-                      </p>
                     </div>
                   </div>
+                ))
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center">
+                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                    <ShoppingBag className="text-slate-300" size={32} />
+                  </div>
+                  <p className="text-slate-900 font-bold">Your cart is empty</p>
+                  <p className="text-xs text-slate-400 mt-1">Add items from the inventory to get started</p>
                 </div>
-              ))}
+              )}
             </div>
 
-            <div className="p-6 bg-slate-50 border-t border-slate-100 space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-slate-500">Total Amount</span>
-                <span className="text-2xl font-black text-slate-900">${cartTotal.toFixed(2)}</span>
+            {cart.length > 0 && (
+              <div className="p-6 bg-slate-50 border-t border-slate-100 space-y-4">
+                {/* Delivery Date Selection */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+                  <div className="flex items-center gap-2 text-slate-900">
+                    <Calendar size={16} className="text-indigo-600" />
+                    <span className="text-xs font-bold uppercase tracking-wider">Select Delivery Date</span>
+                  </div>
+                  <input 
+                    type="date" 
+                    value={deliveryDate}
+                    onChange={(e) => setDeliveryDate(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                    min={new Date().toISOString().split('T')[0]}
+                  />
+                </div>
+
+                <div className="flex justify-between items-center px-2">
+                  <span className="text-sm font-bold text-slate-500 uppercase">Total Amount</span>
+                  <span className="text-2xl font-black text-slate-900">${cartTotal.toFixed(2)}</span>
+                </div>
+                <button 
+                  onClick={handlePlaceOrder}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all flex items-center justify-center gap-3"
+                >
+                  Place Order
+                </button>
               </div>
-              <button
-                className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-                onClick={handlePlaceOrder}
-              >
-                Place Order
-              </button>
-              <p className="text-[10px] text-center text-slate-400">
-                By placing the order, you agree to our terms and conditions.
-              </p>
-            </div>
+            )}
           </div>
         </div>
       )}

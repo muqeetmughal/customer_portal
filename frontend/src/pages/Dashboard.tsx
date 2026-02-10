@@ -16,24 +16,18 @@ const getRelativeTime = (dateString: string) => {
     return date.toLocaleDateString();
 };
 
-const TOP_ITEMS = [
-    { name: 'UltraWide Monitor 34"', sales: 124, revenue: '$43,400', growth: '+12%' },
-    { name: 'Ergonomic Desk Chair', sales: 98, revenue: '$28,900', growth: '+8%' },
-    { name: 'Wireless Mechanical KB', sales: 82, revenue: '$12,300', growth: '+15%' },
-    { name: 'USB-C Docking Station', sales: 75, revenue: '$11,250', growth: '-2%' },
-];
-
 const Dashboard = () => {
     const metrics_query = useFrappeGetCall("customer_portal.api.v1.get_customer_dashboard_data");
-    
     const activities_query = useFrappeGetCall("customer_portal.api.v1.get_recent_activities");
+    const hotItemsQuery = useFrappeGetCall("customer_portal.api.v1.get_hot_items");
 
-    if (metrics_query.isLoading || activities_query.isLoading) {
+    if (metrics_query.isLoading || activities_query.isLoading || hotItemsQuery.isLoading) {
         return <div className="flex items-center justify-center h-screen text-slate-500 font-medium">Loading dashboard data...</div>
     }
 
     const recentActivities = activities_query.data?.message || [];
-    const metrics = metrics_query.data?.message || {};
+    const metrics = metrics_query.data?.message || [];
+    const hotItems = hotItemsQuery.data?.message || [];
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
@@ -75,6 +69,7 @@ const Dashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Recent Activities */}
                 <div className="lg:col-span-2 space-y-8">
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center">
@@ -121,21 +116,27 @@ const Dashboard = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Hot Items */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                     <div className="flex items-center gap-2 mb-6">
                         <Flame className="text-orange-500 fill-orange-500" size={20} />
                         <h2 className="text-lg font-bold text-slate-800">Hot Items</h2>
                     </div>
                     <div className="space-y-6">
-                        {TOP_ITEMS.map((item, idx) => (
-                            <div key={idx} className="flex justify-between items-center group cursor-pointer">
-                                <div>
-                                    <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600">{item.name}</p>
-                                    <p className="text-xs text-slate-400">{item.sales} units • <span className="text-emerald-500 font-bold">{item.growth}</span></p>
+                        {hotItems.length > 0 ? (
+                            hotItems.map((item: any, idx: number) => (
+                                <div key={idx} className="flex justify-between items-center group cursor-pointer">
+                                    <div>
+                                        <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600">{item.name}</p>
+                                        <p className="text-xs text-slate-400">{item.sales} units • <span className={`font-bold ${item.growth.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>{item.growth}</span></p>
+                                    </div>
+                                    <p className="font-mono text-sm font-bold text-slate-600">{item.revenue}</p>
                                 </div>
-                                <p className="font-mono text-sm font-bold text-slate-600">{item.revenue}</p>
-                            </div>
-                        ))}
+                            ))
+                        ) : (
+                            <p className="text-center text-slate-400 text-sm">No hot items found</p>
+                        )}
                     </div>
                 </div>
             </div>

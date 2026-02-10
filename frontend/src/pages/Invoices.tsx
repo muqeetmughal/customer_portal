@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { FileText, X, Search, Check, Download, FileSpreadsheet, File as FileIcon } from 'lucide-react';
+import { FileText, X, Search, Check } from 'lucide-react';
 import { useFrappeGetCall } from "frappe-react-sdk";
 import ActionButtons from '../components/Download';
 import DataToolbar from '../components/DataToolbar';
-import Modal from '../components/ViewRecords'; 
-import FilterPanel from '../components/FilterPanel'; 
+import ViewRecords from '../components/ViewRecords';
+import FilterPanel from '../components/FilterPanel';
+import ExportSelection from '../components/ExportSelection';
 
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, string> = {
@@ -41,20 +42,18 @@ interface DocumentListViewProps {
   data: any[];
   columns: Column[];
   icon: React.ElementType;
-  onView?: (item: any) => void; 
-  onDownload?: (item: any) => void;
+  onView: (item: any) => void;
+  onDownload: (item: any) => void;
+  rawData?: any[];
 }
 
-const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload }: DocumentListViewProps) => {
+const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload, rawData }: DocumentListViewProps) => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
   
-  // Selection State
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
-  // Ref for the toolbar container to handle click-outside for the filter panel
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,14 +62,8 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
         setIsFilterOpen(false);
       }
     };
-
-    if (isFilterOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    if (isFilterOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isFilterOpen]);
 
   const handleFilterChange = (key: string, value: string) => {
@@ -96,11 +89,9 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
 
   const activeFilterCount = Object.keys(activeFilters).length;
 
-  // Selection Logic
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
     setSelectedIds(new Set());
-    setIsExportMenuOpen(false);
   };
 
   const toggleSelectAll = () => {
@@ -118,44 +109,11 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
     setSelectedIds(newSelected);
   };
 
-  // Export Logic
-  const getSelectedData = () => {
-    return filteredData.filter(item => selectedIds.has(item.name || item.id));
-  };
-
-  const exportToCSV = () => {
-    const selectedData = getSelectedData();
-    const headers = columns.map(col => col.label).join(',');
-    const rows = selectedData.map(item => 
-      columns.map(col => `"${item[col.key] || ''}"`).join(',')
-    ).join('\n');
-    
-    const csvContent = `data:text/csv;charset=utf-8,${headers}\n${rows}`;
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${title.toLowerCase()}_export.csv`);
-    document.body.appendChild(link);
-    link.click();
-    setIsExportMenuOpen(false);
-  };
-
-  const exportToExcel = () => {
-    const selectedData = getSelectedData();
-    let html = `<table><thead><tr>${columns.map(col => `<th>${col.label}</th>`).join('')}</tr></thead><tbody>`;
-    selectedData.forEach(item => {
-      html += `<tr>${columns.map(col => `<td>${item[col.key] || ''}</td>`).join('')}</tr>`;
-    });
-    html += '</tbody></table>';
-
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${title.toLowerCase()}_export.xls`;
-    link.click();
-    setIsExportMenuOpen(false);
-  };
+  // Prepare data for export by merging visible data with raw API data
+  const selectedExportData = useMemo(() => {
+    const sourceData = rawData || filteredData;
+    return sourceData.filter(item => selectedIds.has(item.name || item.id));
+  }, [rawData, filteredData, selectedIds]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -174,27 +132,14 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
           {isSelectionMode ? (
             <div className="flex items-center gap-2 animate-in zoom-in-95 duration-200">
               <button onClick={toggleSelectionMode} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors">Cancel</button>
-              <div className="relative">
-                <button 
-                  disabled={selectedIds.size === 0}
-                  onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-md ${selectedIds.size > 0 ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                >
-                  <Download size={16} /> Export ({selectedIds.size})
-                </button>
-                {isExportMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 z-50 animate-in slide-in-from-top-2 duration-200">
-                    <button onClick={exportToCSV} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"><FileIcon size={16} className="text-blue-500" /> Export as CSV</button>
-                    <button onClick={exportToExcel} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"><FileSpreadsheet size={16} className="text-emerald-500" /> Export as Excel</button>
-                  </div>
-                )}
-              </div>
+              <ExportSelection 
+                title={title}
+                data={selectedExportData}
+                selectedCount={selectedIds.size}
+              />
             </div>
           ) : (
-            <DataToolbar onFilter={() => setIsFilterOpen(!isFilterOpen)} onExport={toggleSelectionMode} />
-          )}
-          {!isSelectionMode && activeFilterCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white ring-2 ring-white">{activeFilterCount}</span>
+            <DataToolbar onFilter={() => setIsFilterOpen(!isFilterOpen)} onExport={toggleSelectionMode} activeFilterCount={activeFilterCount} />
           )}
           <FilterPanel isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} title={title} columns={columns} activeFilters={activeFilters} onFilterChange={handleFilterChange} onClearAll={clearFilters} />
         </div>
@@ -217,7 +162,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
             const column = columns.find(c => c.key === key);
             return (
               <div key={key} className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100 text-xs font-medium">
-                <span className="opacity-60">{column?.label}:</span>
+                <span className="opacity-60">{column?.label || key}:</span>
                 <span>{value}</span>
                 <button onClick={() => handleFilterChange(key, '')} className="hover:text-indigo-900"><X size={12} /></button>
               </div>
@@ -262,7 +207,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
                         </td>
                       ))}
                       <td className="px-6 py-4 text-right">
-                        {!isSelectionMode && <ActionButtons onView={() => onView && onView(item)} onDownload={() => onDownload && onDownload(item)} />}
+                        {!isSelectionMode && <ActionButtons onView={() => onView(item)} onDownload={() => onDownload(item)} />}
                       </td>
                     </tr>
                   );
@@ -312,7 +257,7 @@ const InvoicesPage = () => {
     { label: 'Invoice ID', key: 'name' },
     { label: 'Date', key: 'posting_date' },
     { label: 'Due Date', key: 'due_date' },
-    { label: 'Total', key: 'total' },
+    { label: 'Total', key: 'grand_total' },
     { label: 'Status', key: 'status' },
   ];
 
@@ -343,21 +288,22 @@ const InvoicesPage = () => {
         icon={FileText} 
         onView={handleViewInvoice}
         onDownload={handleDirectDownload}
+        rawData={invoices}
       />
 
-      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title="Invoice Details">
+      <ViewRecords isOpen={isModalOpen} onClose={handleCloseModal} title="Invoice Details">
         {selectedInvoice ? (
           <div className="space-y-2 text-sm">
             <p><strong>Invoice ID:</strong> {selectedInvoice.name}</p>
             <p><strong>Date:</strong> {selectedInvoice.posting_date}</p>
             <p><strong>Due Date:</strong> {selectedInvoice.due_date}</p>
-            <p><strong>Total:</strong> {selectedInvoice.total}</p>
+            <p><strong>Total:</strong> {selectedInvoice.grand_total}</p>
             <p><strong>Status:</strong> {selectedInvoice.status}</p>
           </div>
         ) : (
           <p>Loading...</p>
         )}
-      </Modal>
+      </ViewRecords>
     </div>
   );
 };

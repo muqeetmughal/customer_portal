@@ -45,6 +45,8 @@ interface DocumentListViewProps {
   icon: React.ElementType;
   onView: (item: any) => void;
   onDownload: (item: any) => void;
+  // Added rawData prop to allow exporting all fields
+  rawData?: any[];
 }
 
 const DocumentListView = ({
@@ -54,6 +56,7 @@ const DocumentListView = ({
   icon: Icon,
   onView,
   onDownload,
+  rawData,
 }: DocumentListViewProps) => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
@@ -127,9 +130,17 @@ const DocumentListView = ({
     setSelectedIds(newSelected);
   };
 
-  const selectedData = useMemo(() => {
-    return filteredData.filter(item => selectedIds.has(item.id));
-  }, [filteredData, selectedIds]);
+  // Prepare data for export by merging visible data with raw API data
+  const selectedExportData = useMemo(() => {
+    if (!rawData) return filteredData.filter(item => selectedIds.has(item.id));
+    
+    return rawData
+      .filter(rawItem => selectedIds.has(rawItem.name))
+      .map(rawItem => ({
+        ...rawItem,
+        id: rawItem.name // Ensure ID consistency for export
+      }));
+  }, [rawData, filteredData, selectedIds]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -158,8 +169,7 @@ const DocumentListView = ({
               
               <ExportSelection 
                 title={title}
-                data={selectedData}
-                columns={columns}
+                data={selectedExportData}
                 selectedCount={selectedIds.size}
               />
             </div>
@@ -361,7 +371,9 @@ const SalesOrdersPage = () => {
     );
   }
 
-  const salesOrders = (data?.message || []).map((so: any) => ({
+  const rawApiData = data?.message || [];
+
+  const salesOrders = rawApiData.map((so: any) => ({
     id: so.name,
     ref: so.po_no || "-",
     date: so.transaction_date,
@@ -382,6 +394,7 @@ const SalesOrdersPage = () => {
       <DocumentListView
         title="Sales Orders"
         data={salesOrders}
+        rawData={rawApiData} // Pass the raw data to enable full export
         columns={columns}
         icon={ShoppingBag}
         onView={handleViewOrder}
