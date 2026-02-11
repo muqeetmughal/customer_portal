@@ -17,24 +17,31 @@ const getRelativeTime = (dateString: string) => {
 };
 
 const Dashboard = () => {
-    const metrics_query = useFrappeGetCall("customer_portal.api.v1.get_customer_dashboard_data");
-    const activities_query = useFrappeGetCall("customer_portal.api.v1.get_recent_activities");
-    const hotItemsQuery = useFrappeGetCall("customer_portal.api.v1.get_hot_items");
+    // Single API call to fetch all dashboard data
+    const dashboardQuery = useFrappeGetCall("customer_portal.api.v1.get_dashboard_data");
 
-    if (metrics_query.isLoading || activities_query.isLoading || hotItemsQuery.isLoading) {
-        return <div className="flex items-center justify-center h-screen text-slate-500 font-medium">Loading dashboard data...</div>
+    if (dashboardQuery.isLoading) {
+        return (
+            <div className="flex items-center justify-center h-screen text-slate-500 font-medium">
+                Loading dashboard data...
+            </div>
+        );
     }
 
-    const recentActivities = activities_query.data?.message || [];
-    const metrics = metrics_query.data?.message || [];
-    const hotItems = hotItemsQuery.data?.message || [];
+    const data = dashboardQuery.data?.message || {};
+
+    const metrics = data.customer_summary || {};
+    const recentActivities = data.recent_activities || [];
+    const hotItems = data.hot_items || [];
+    const currencySymbol = data.currency_symbol || "$";
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
+            {/*  Stats Cards  */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                     title="Total Sales"
-                    value={`$${metrics.total_sales?.amount?.toLocaleString() || '0'}`}
+                    value={`${currencySymbol}${metrics.total_sales?.amount?.toLocaleString() || '0'}`}
                     icon={DollarSign}
                     trend={metrics.total_sales?.change_percentage >= 0 ? "up" : "down"}
                     trendValue={`${metrics.total_sales?.change_percentage >= 0 ? '+' : ''}${metrics.total_sales?.change_percentage || 0}%`}
@@ -43,16 +50,14 @@ const Dashboard = () => {
                 />
                 <StatCard
                     title="Outstanding"
-                    value={`$${metrics.outstanding?.amount?.toLocaleString() || '0'}`}
+                    value={`${currencySymbol}${metrics.outstanding?.amount?.toLocaleString() || '0'}`}
                     icon={Wallet}
-                    trend={metrics.outstanding?.change_percentage >= 0 ? "up" : "down"}
-                    trendValue={`${metrics.outstanding?.change_percentage >= 0 ? '+' : ''}${metrics.outstanding?.change_percentage || 0}%`}
                     colorClass="bg-rose-600"
                     isCurrency
                 />
                 <StatCard
                     title="Paid to Date"
-                    value={`$${metrics.paid_to_date?.amount?.toLocaleString() || '0'}`}
+                    value={`${currencySymbol}${metrics.paid_to_date?.amount?.toLocaleString() || '0'}`}
                     icon={CreditCard}
                     trend={metrics.paid_to_date?.change_percentage >= 0 ? "up" : "down"}
                     trendValue={`${metrics.paid_to_date?.change_percentage >= 0 ? '+' : ''}${metrics.paid_to_date?.change_percentage || 0}%`}
@@ -61,13 +66,14 @@ const Dashboard = () => {
                 />
                 <StatCard
                     title="Ledger Balance"
-                    value={`$${metrics.ledger_balance?.amount?.toLocaleString() || '0'}`}
+                    value={`${currencySymbol}${metrics.ledger_balance?.amount?.toLocaleString() || '0'}`}
                     icon={BookOpen}
                     colorClass="bg-indigo-600"
                     isCurrency
                 />
             </div>
 
+            {/*  Recent Activities & Hot Items  */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Recent Activities */}
                 <div className="lg:col-span-2 space-y-8">
@@ -92,7 +98,7 @@ const Dashboard = () => {
                                                 <td className="px-6 py-4 flex items-center gap-3">
                                                     <div className="p-2 bg-slate-100 rounded-lg"><Clock size={16} /></div>
                                                     <div>
-                                                        <p className="text-sm font-medium text-slate-900">{item.desc}</p>
+                                                        <p className="text-sm font-medium text-slate-800">{item.desc}</p>
                                                         <p className="text-xs text-slate-400">{getRelativeTime(item.date)}</p>
                                                     </div>
                                                 </td>
@@ -100,7 +106,7 @@ const Dashboard = () => {
                                                     <StatusBadge status={item.status} />
                                                 </td>
                                                 <td className="px-6 py-4 text-sm font-bold">
-                                                    ${item.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    {currencySymbol}{item.amount?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                 </td>
                                             </tr>
                                         ))
@@ -129,7 +135,7 @@ const Dashboard = () => {
                                 <div key={idx} className="flex justify-between items-center group cursor-pointer">
                                     <div>
                                         <p className="text-sm font-bold text-slate-800 group-hover:text-indigo-600">{item.name}</p>
-                                        <p className="text-xs text-slate-400">{item.sales} units • <span className={`font-bold ${item.growth.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>{item.growth}</span></p>
+                                        <p className="text-xs text-slate-400">{item.sales} units • <span className={`${item.growth.startsWith('+') ? 'text-emerald-500' : 'text-rose-500'}`}>{item.growth}</span></p>
                                     </div>
                                     <p className="font-mono text-sm font-bold text-slate-600">{item.revenue}</p>
                                 </div>

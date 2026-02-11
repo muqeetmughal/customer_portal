@@ -272,10 +272,12 @@ const MainLayout = () => {
       <main className="flex-1 h-screen overflow-y-auto">
         <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-slate-100 px-10 py-6 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <div className="relative group">
+          {/* blobal search bar */}
+          
+            {/* <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
               <input type="text" placeholder="Global search documents..." className="bg-slate-100 border-none rounded-2xl pl-12 pr-6 py-3 w-80 text-sm focus:ring-2 focus:ring-indigo-500/10 transition-all" />
-            </div>
+            </div> */}
           </div>
           <div className="flex items-center gap-8">
             {/* Cart Button */}

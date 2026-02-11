@@ -19,19 +19,12 @@ import {
 
 const Analytics = () => {
 
-  const salesVelocityQuery = useFrappeGetCall(
-    "customer_portal.api.v1.get_sales_velocity_monthly"
+  {/* backend query */}
+  const analyticsQuery = useFrappeGetCall(
+    "customer_portal.api.v1.get_dashboard_analytics"
   );
 
-  const topItemsQuery = useFrappeGetCall(
-    "customer_portal.api.v1.get_top_selling_items"
-  );
-
-  const invoiceStatusQuery = useFrappeGetCall(
-    "customer_portal.api.v1.get_sales_invoice_status_count"
-  );
-
-  if (salesVelocityQuery.isLoading || topItemsQuery.isLoading || invoiceStatusQuery.isLoading) {
+  if (analyticsQuery.isLoading) {
     return (
       <div className="flex items-center justify-center h-64 text-slate-500">
         Loading analytics...
@@ -39,35 +32,38 @@ const Analytics = () => {
     );
   }
 
-  
+  const data = analyticsQuery.data?.message || {};
+
+  {/* ================= SALES VELOCITY ================= */}
   const salesChartData =
-    salesVelocityQuery.data?.message?.labels?.map(
+    data.sales_velocity?.labels?.map(
       (label: string, index: number) => ({
         month: label,
-        orders: salesVelocityQuery.data.message.orders[index],
-        sales: salesVelocityQuery.data.message.sales[index],
+        orders: data.sales_velocity.orders[index],
+        sales: data.sales_velocity.sales[index],
       })
     ) || [];
 
-  
+  {/* ================= TOP ITEMS ================= */}
   const topItemsChartData =
-    topItemsQuery.data?.message?.map((item: any) => ({
-      name: item.name.split(' ')[0], 
-      sales: item.sales_count
-    })) || [];
+    (data.top_items || []).map((item: any) => ({
+      name: item.name ? item.name.split(' ')[0] : 'Unknown',
+      sales: item.sales_count || 0
+    }));
 
+  {/* ================= INVOICE STATUS ================= */}
   const invoiceStatusData = [
-    { name: 'Paid', value: invoiceStatusQuery.data?.message?.Paid || 0, color: '#10b981' },
-    { name: 'Draft', value: invoiceStatusQuery.data?.message?.Draft || 0, color: '#f59e0b' },
-    { name: 'Overdue', value: invoiceStatusQuery.data?.message?.Overdue || 0, color: '#ef4444' },
-  ];
+    { name: 'Paid', value: data.invoice_status?.Paid || 0, color: '#10b981' },
+    { name: 'Draft', value: data.invoice_status?.Draft || 0, color: '#f59e0b' },
+    { name: 'Overdue', value: data.invoice_status?.Overdue || 0, color: '#ef4444' },
+  ].filter(item => item.value > 0);
 
-  const PURCHASE_HISTORY_DATA = [
-    { name: 'Electronics', value: 4500 },
-    { name: 'Office Supplies', value: 1200 },
-    { name: 'Services', value: 3000 },
-    { name: 'Hardware', value: 2100 },
-  ];
+  {/* ================= DELIVERY DISTRIBUTION ================= */}
+  const deliveryDistributionData =
+    (data.delivery_distribution || []).map((item: any) => ({
+      name: item.name || 'Unknown',
+      value: item.value || 0
+    }));
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-bottom-4 duration-500">
@@ -75,7 +71,7 @@ const Analytics = () => {
       {/* ================= Sales Velocity ================= */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <h3 className="text-lg font-bold mb-6 text-slate-800">Sales Velocity</h3>
-        <div className="h-80">
+        <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={salesChartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -94,7 +90,7 @@ const Analytics = () => {
           <h3 className="text-lg font-bold text-slate-800">Top Items</h3>
           <Flame size={18} className="text-orange-500" />
         </div>
-        <div className="h-80">
+        <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={topItemsChartData}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -110,7 +106,7 @@ const Analytics = () => {
       {/* ================= Collections Overview ================= */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <h3 className="text-lg font-bold mb-6 text-slate-800">Collections Overview</h3>
-        <div className="h-80">
+        <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={invoiceStatusData} innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
@@ -128,9 +124,9 @@ const Analytics = () => {
       {/* ================= Delivery Distribution ================= */}
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
         <h3 className="text-lg font-bold mb-6 text-slate-800">Delivery Distribution</h3>
-        <div className="h-80">
+        <div className="h-80 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={PURCHASE_HISTORY_DATA} layout="vertical">
+            <BarChart data={deliveryDistributionData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
               <XAxis type="number" hide />
               <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{fill: '#64748b'}} />

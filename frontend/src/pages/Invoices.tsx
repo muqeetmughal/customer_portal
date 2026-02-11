@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { FileText, X, Search, Check } from 'lucide-react';
-import { useFrappeGetCall } from "frappe-react-sdk";
+import { FileText, X, Search, Check, Trash2 } from 'lucide-react';
+import { useFrappeGetCall, useFrappeDeleteDoc } from "frappe-react-sdk";
 import ActionButtons from '../components/Download';
 import DataToolbar from '../components/DataToolbar';
 import ViewRecords from '../components/ViewRecords';
@@ -19,6 +19,7 @@ const StatusBadge = ({ status }: { status: string }) => {
     'In Transit': 'bg-sky-100 text-sky-700',
     Active: 'bg-emerald-100 text-emerald-700',
     Expired: 'bg-slate-100 text-slate-700',
+    Draft: 'bg-slate-100 text-slate-600',
     Invoice: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
     Payment: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
     'Credit Note': 'bg-rose-50 text-rose-600 border border-rose-100',
@@ -44,27 +45,48 @@ interface DocumentListViewProps {
   icon: React.ElementType;
   onView: (item: any) => void;
   onDownload: (item: any) => void;
+  onDelete?: (item: any) => void;
   rawData?: any[];
 }
 
-const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload, rawData }: DocumentListViewProps) => {
+const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload, onDelete, rawData }: DocumentListViewProps) => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
+  const [debouncedFilters, setDebouncedFilters] = useState<Record<string, string>>({});
   
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      
+      if (isFilterOpen && toolbarRef.current && !toolbarRef.current.contains(target)) {
         setIsFilterOpen(false);
       }
+      
+      if (isSelectionMode && containerRef.current && !containerRef.current.contains(target)) {
+        setIsSelectionMode(false);
+        setSelectedIds(new Set());
+      }
     };
-    if (isFilterOpen) document.addEventListener('mousedown', handleClickOutside);
+
+    if (isFilterOpen || isSelectionMode) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isFilterOpen]);
+  }, [isFilterOpen, isSelectionMode]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedFilters(activeFilters);
+    }, 2000); 
+
+    return () => clearTimeout(timer);
+  }, [activeFilters]);
 
   const handleFilterChange = (key: string, value: string) => {
     setActiveFilters(prev => {
@@ -79,16 +101,17 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
 
   const filteredData = useMemo(() => {
     return data.filter((item) => {
-      return Object.entries(activeFilters).every(([key, value]) => {
+      return Object.entries(debouncedFilters).every(([key, value]) => {
         if (!value) return true;
         const itemValue = String(item[key] || '').toLowerCase();
         return itemValue.includes(value.toLowerCase());
       });
     });
-  }, [data, activeFilters]);
+  }, [data, debouncedFilters]);
 
   const activeFilterCount = Object.keys(activeFilters).length;
 
+  //  Selection Mode 
   const toggleSelectionMode = () => {
     setIsSelectionMode(!isSelectionMode);
     setSelectedIds(new Set());
@@ -109,14 +132,13 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
     setSelectedIds(newSelected);
   };
 
-  // Prepare data for export by merging visible data with raw API data
   const selectedExportData = useMemo(() => {
     const sourceData = rawData || filteredData;
     return sourceData.filter(item => selectedIds.has(item.name || item.id));
   }, [rawData, filteredData, selectedIds]);
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div ref={containerRef} className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-100">
@@ -131,7 +153,6 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
         <div className="flex items-center gap-3 relative" ref={toolbarRef}>
           {isSelectionMode ? (
             <div className="flex items-center gap-2 animate-in zoom-in-95 duration-200">
-              <button onClick={toggleSelectionMode} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition-colors">Cancel</button>
               <ExportSelection 
                 title={title}
                 data={selectedExportData}
@@ -145,6 +166,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
         </div>
       </div>
 
+      {/*  Selection Mode Banner  */}
       {isSelectionMode && (
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
           <div className="flex items-center gap-3">
@@ -155,6 +177,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
         </div>
       )}
 
+      {/*  Active Filters  */}
       {!isSelectionMode && activeFilterCount > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mr-1">Active Filters:</span>
@@ -171,6 +194,7 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
         </div>
       )}
 
+      {/*  Table  */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left">
@@ -207,7 +231,25 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
                         </td>
                       ))}
                       <td className="px-6 py-4 text-right">
-                        {!isSelectionMode && <ActionButtons onView={() => onView(item)} onDownload={() => onDownload(item)} />}
+                        {!isSelectionMode && (
+                          <div className="flex items-center justify-end gap-2">
+                            {item.status === 'Draft' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm('Are you sure you want to delete this draft invoice?')) {
+                                    onDelete?.(item);
+                                  }
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl text-xs font-bold hover:bg-rose-100 transition-colors"
+                                title="Cancel/Delete Draft"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                            <ActionButtons onView={() => onView(item)} onDownload={() => onDownload(item)} />
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -231,8 +273,10 @@ const DocumentListView = ({ title, data, columns, icon: Icon, onView, onDownload
   );
 };
 
+//  Invoices Page 
 const InvoicesPage = () => {
-  const { data, isLoading, error } = useFrappeGetCall("customer_portal.api.v1.get_sales_invoice_data");
+  const { data, isLoading, error, mutate } = useFrappeGetCall("customer_portal.api.v1.get_sales_invoice_data");
+  const { deleteDoc } = useFrappeDeleteDoc();
   
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -247,10 +291,36 @@ const InvoicesPage = () => {
     setIsModalOpen(false);
   };
 
-  const handleDirectDownload = (invoice: any) => {
+  const handleDownloadInvoice = (invoice: any) => {
     if (!invoice) return;
-    const printUrl = `/app/print/Sales Invoice/${invoice.name}`;
-    window.open(printUrl, '_blank');
+    const docName = invoice.name || invoice.id;
+    const params = new URLSearchParams({
+      doctype: 'Sales Invoice',
+      name: docName,
+      format: 'Sales Auditing Voucher',
+      no_letterhead: '1',
+      letterhead: 'No Letterhead',
+      settings: JSON.stringify({}),
+      _lang: 'en'
+    });
+    const pdfUrl = `/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`;
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = `Sales Invoice_${docName}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleDeleteInvoice = async (invoice: any) => {
+    try {
+      const docName = invoice.name || invoice.id;
+      await deleteDoc('Sales Invoice', docName);
+      mutate();
+    } catch (error) {
+      console.error("Failed to delete invoice:", error);
+      alert("Failed to delete the invoice. Please try again.");
+    }
   };
 
   const columns: Column[] = [
@@ -261,21 +331,8 @@ const InvoicesPage = () => {
     { label: 'Status', key: 'status' },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-slate-500 font-medium animate-pulse">Loading invoices...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-rose-500 font-bold">Error loading invoices: {error.message}</div>
-      </div>
-    );
-  }
+  if (isLoading) return <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50"><div className="text-slate-500 font-medium animate-pulse">Loading invoices...</div></div>;
+  if (error) return <div className="p-10 flex items-center justify-center min-h-screen bg-slate-50"><div className="text-rose-500 font-bold">Error loading invoices: {error.message}</div></div>;
 
   const invoices = data?.message || [];
 
@@ -283,11 +340,12 @@ const InvoicesPage = () => {
     <div className="p-10 bg-slate-50 min-h-screen">
       <DocumentListView 
         title="Invoices" 
-        data={invoices} 
+        data={invoices}   
         columns={columns} 
         icon={FileText} 
         onView={handleViewInvoice}
-        onDownload={handleDirectDownload}
+        onDownload={handleDownloadInvoice}
+        onDelete={handleDeleteInvoice}
         rawData={invoices}
       />
 

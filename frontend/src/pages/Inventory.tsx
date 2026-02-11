@@ -13,7 +13,6 @@ const Inventory = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
   
-  // --- Local Storage addToCart functionality ---
   const [cart, setCart] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       const savedCart = localStorage.getItem('customer_portal_cart');
@@ -67,7 +66,6 @@ const Inventory = () => {
 
   const activeFilterCount = Object.keys(activeFilters).length;
 
-  // --- Cart Actions ---
   const addToCart = (product: any) => {
     const savedCart = localStorage.getItem('customer_portal_cart');
     let currentCart = savedCart ? JSON.parse(savedCart) : [];
@@ -86,7 +84,6 @@ const Inventory = () => {
     window.dispatchEvent(new Event('cart-updated'));
   };
 
-  // --- Increment Quantity ---
   const incrementQuantity = (productId: string) => {
     const savedCart = localStorage.getItem('customer_portal_cart');
     let currentCart = savedCart ? JSON.parse(savedCart) : [];
@@ -100,12 +97,10 @@ const Inventory = () => {
     window.dispatchEvent(new Event('cart-updated'));
   };
 
-  // --- Decrement Quantity ---
   const decrementQuantity = (productId: string) => {
     const savedCart = localStorage.getItem('customer_portal_cart');
     let currentCart = savedCart ? JSON.parse(savedCart) : [];
     
-    // Filter out items with quantity 0, decrement others
     currentCart = currentCart
       .map((item: any) =>
         item.id === productId 
@@ -215,7 +210,6 @@ const Inventory = () => {
                     </p>
                   </div>
 
-                  {/* Cart Button or Quantity Controls */}
                   {!isInCart ? (
                     <button
                       onClick={() => addToCart(item)}
